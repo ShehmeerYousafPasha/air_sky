@@ -11,6 +11,7 @@ import 'package:air_sky/core/theme/app_theme.dart';
 import 'package:air_sky/core/utils/account_required_prompt.dart';
 import 'package:air_sky/core/utils/app_feedback.dart';
 import 'package:air_sky/core/utils/date_time_utils.dart';
+import 'package:air_sky/core/utils/price_formatter.dart';
 import 'package:air_sky/shared/widgets/app_primary_button.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -324,6 +325,7 @@ class ProfileScreen extends ConsumerWidget {
     final bool isGuest = ref.watch(guestModeProvider);
     final AsyncValue<void> authState = ref.watch(authControllerProvider);
     final ThemeMode mode = ref.watch(themeModeControllerProvider);
+    final AppCurrency currency = ref.watch(currencyControllerProvider);
     final String? firestoreName = ref
         .watch(userProfileNameProvider)
         .valueOrNull;
@@ -367,6 +369,7 @@ class ProfileScreen extends ConsumerWidget {
       ThemeMode.light => 'Light mode',
       _ => 'System theme',
     };
+    final String currencyLabel = PriceFormatter.currencyLabel(currency);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
@@ -410,17 +413,55 @@ class ProfileScreen extends ConsumerWidget {
           const _SectionLabel(title: 'Preferences'),
           SizedBox(height: 8.h),
           _ProfileSurface(
-            child: ListTile(
-              contentPadding: EdgeInsets.symmetric(horizontal: 12.w),
-              leading: const _LeadingIcon(icon: Icons.dark_mode_outlined),
-              title: const Text('Dark mode'),
-              subtitle: const Text('Switch between light and dark theme'),
-              trailing: Switch.adaptive(
-                value: mode == ThemeMode.dark,
-                onChanged: (_) => ref
-                    .read(themeModeControllerProvider.notifier)
-                    .toggleTheme(),
-              ),
+            child: Column(
+              children: <Widget>[
+                ListTile(
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12.w),
+                  leading: const _LeadingIcon(icon: Icons.dark_mode_outlined),
+                  title: const Text('Dark mode'),
+                  subtitle: const Text('Switch between light and dark theme'),
+                  trailing: Switch.adaptive(
+                    value: mode == ThemeMode.dark,
+                    onChanged: (_) => ref
+                        .read(themeModeControllerProvider.notifier)
+                        .toggleTheme(),
+                  ),
+                ),
+                Divider(height: 1.h),
+                ListTile(
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12.w),
+                  leading: const _LeadingIcon(
+                    icon: Icons.currency_exchange_rounded,
+                  ),
+                  title: const Text('Currency'),
+                  subtitle: Text('Display prices in $currencyLabel'),
+                  trailing: DropdownButtonHideUnderline(
+                    child: DropdownButton<AppCurrency>(
+                      value: currency,
+                      isDense: true,
+                      onChanged: (AppCurrency? value) {
+                        if (value == null) {
+                          return;
+                        }
+                        ref
+                            .read(currencyControllerProvider.notifier)
+                            .setCurrency(value);
+                      },
+                      items: AppCurrency.values
+                          .map(
+                            (AppCurrency value) =>
+                                DropdownMenuItem<AppCurrency>(
+                                  value: value,
+                                  child: Text(
+                                    PriceFormatter.currencyCode(value),
+                                  ),
+                                ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           if (!isGuest && user != null) ...<Widget>[

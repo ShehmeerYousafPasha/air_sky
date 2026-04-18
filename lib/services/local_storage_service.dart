@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'package:air_sky/core/constants/hive_constants.dart';
+import 'package:air_sky/core/utils/price_formatter.dart';
 import 'package:air_sky/features/flights/domain/entities/flight.dart';
 import 'package:air_sky/features/flights/domain/entities/flight_search_query.dart';
 
@@ -38,6 +39,24 @@ class LocalStorageService {
 
   Future<void> saveThemeMode(ThemeMode mode) async {
     await _settingsBox.put(HiveConstants.themeModeKey, mode.name);
+  }
+
+  AppCurrency getCurrency() {
+    final String rawCode =
+        _settingsBox.get(
+              HiveConstants.currencyCodeKey,
+              defaultValue: PriceFormatter.currencyCode(AppCurrency.usd),
+            )
+            as String;
+
+    return PriceFormatter.parseCurrency(rawCode);
+  }
+
+  Future<void> saveCurrency(AppCurrency currency) async {
+    await _settingsBox.put(
+      HiveConstants.currencyCodeKey,
+      PriceFormatter.currencyCode(currency),
+    );
   }
 
   bool getOnboardingCompleted() {

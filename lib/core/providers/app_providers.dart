@@ -3,7 +3,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:air_sky/core/preferences/currency_controller.dart';
 import 'package:air_sky/core/theme/theme_mode_controller.dart';
+import 'package:air_sky/core/utils/price_formatter.dart';
+import 'package:air_sky/features/ai_assistant/data/ai_local_assistant_service.dart';
+import 'package:air_sky/features/ai_assistant/domain/entities/ai_assistant_models.dart';
+import 'package:air_sky/features/ai_assistant/presentation/controllers/ai_assistant_controller.dart';
 import 'package:air_sky/features/auth/data/auth_repository_impl.dart';
 import 'package:air_sky/features/auth/data/unavailable_auth_repository.dart';
 import 'package:air_sky/features/auth/domain/auth_repository.dart';
@@ -139,6 +144,21 @@ final Provider<FlightRepository> flightRepositoryProvider =
       ),
     );
 
+final Provider<AiLocalAssistantService> aiLocalAssistantServiceProvider =
+    Provider<AiLocalAssistantService>(
+      (Ref ref) => const AiLocalAssistantService(),
+    );
+
+final StateNotifierProvider<AiAssistantController, AiAssistantState>
+aiAssistantControllerProvider =
+    StateNotifierProvider<AiAssistantController, AiAssistantState>(
+      (Ref ref) => AiAssistantController(
+        ref.watch(flightRepositoryProvider),
+        ref.watch(aiLocalAssistantServiceProvider),
+        ref.watch(bookingRepositoryProvider),
+      ),
+    );
+
 final StateNotifierProvider<FlightSearchController, FlightSearchState>
 flightSearchControllerProvider =
     StateNotifierProvider<FlightSearchController, FlightSearchState>(
@@ -188,4 +208,10 @@ final StateNotifierProvider<ThemeModeController, ThemeMode>
 themeModeControllerProvider =
     StateNotifierProvider<ThemeModeController, ThemeMode>(
       (Ref ref) => ThemeModeController(ref.watch(localStorageServiceProvider)),
+    );
+
+final StateNotifierProvider<CurrencyController, AppCurrency>
+currencyControllerProvider =
+    StateNotifierProvider<CurrencyController, AppCurrency>(
+      (Ref ref) => CurrencyController(ref.watch(localStorageServiceProvider)),
     );

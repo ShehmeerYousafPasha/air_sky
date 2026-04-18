@@ -12,10 +12,12 @@ class FlightResultCard extends StatefulWidget {
     super.key,
     required this.flight,
     required this.onTap,
+    this.badges = const <String>[],
   });
 
   final Flight flight;
   final VoidCallback onTap;
+  final List<String> badges;
 
   @override
   State<FlightResultCard> createState() => _FlightResultCardState();
@@ -100,6 +102,19 @@ class _FlightResultCardState extends State<FlightResultCard> {
                                 color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
+                            if (widget.badges.isNotEmpty) ...<Widget>[
+                              SizedBox(height: 6.h),
+                              Wrap(
+                                spacing: 6.w,
+                                runSpacing: 6.h,
+                                children: widget.badges
+                                    .map(
+                                      (String badge) =>
+                                          _FlightBadge(label: badge),
+                                    )
+                                    .toList(),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -238,6 +253,31 @@ class _FlightResultCardState extends State<FlightResultCard> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FlightBadge extends StatelessWidget {
+  const _FlightBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.tertiaryContainer,
+        borderRadius: BorderRadius.circular(999.r),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelSmall?.copyWith(
+          color: theme.colorScheme.onTertiaryContainer,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

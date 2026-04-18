@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:air_sky/core/providers/app_providers.dart';
+import 'package:air_sky/features/ai_assistant/presentation/widgets/ai_assistant_entry_point.dart';
 import 'package:air_sky/features/flights/presentation/widgets/flight_search_form_card.dart';
 
 class FlightSearchScreen extends ConsumerWidget {
@@ -15,19 +16,24 @@ class FlightSearchScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Find Flights')),
-      body: ListView(
-        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+      body: Stack(
         children: <Widget>[
-          Text(
-            isGuest
-                ? 'Guest mode allows basic route and date search only.'
-                : 'Search by route, date, passenger count, and cabin class.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
+          ListView(
+            padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 10.h),
+            children: <Widget>[
+              Text(
+                isGuest
+                    ? 'Guest mode allows basic route and date search only.'
+                    : 'Search by route, date, passenger count, and cabin class.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              SizedBox(height: 10.h),
+              const FlightSearchFormCard(),
+            ],
           ),
-          SizedBox(height: 10.h),
-          const FlightSearchFormCard(),
+          const AiAssistantEntryPoint(),
         ],
       ),
     );

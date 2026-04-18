@@ -86,6 +86,8 @@ class FlightSearchController extends StateNotifier<FlightSearchState> {
       query: query,
       clearError: true,
       fromCache: false,
+      clearMaxStops: true,
+      clearMaxPrice: true,
     );
 
     try {
@@ -93,8 +95,8 @@ class FlightSearchController extends StateNotifier<FlightSearchState> {
       final List<Flight> filtered = _applySortAndFilters(
         flights,
         state.sortOption,
-        maxStops: state.maxStops,
-        maxPrice: state.maxPrice,
+        maxStops: null,
+        maxPrice: null,
       );
 
       state = state.copyWith(
@@ -107,8 +109,8 @@ class FlightSearchController extends StateNotifier<FlightSearchState> {
       final List<Flight> filtered = _applySortAndFilters(
         cached,
         state.sortOption,
-        maxStops: state.maxStops,
-        maxPrice: state.maxPrice,
+        maxStops: null,
+        maxPrice: null,
       );
 
       state = state.copyWith(

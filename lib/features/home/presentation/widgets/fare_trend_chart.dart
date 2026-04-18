@@ -15,6 +15,7 @@ class FareTrendChart extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final SearchFormState form = ref.watch(searchFormControllerProvider);
+    final AppCurrency selectedCurrency = ref.watch(currencyControllerProvider);
     final ThemeData theme = Theme.of(context);
     final List<double> prices = ref
         .watch(flightServiceProvider)
@@ -89,7 +90,7 @@ class FareTrendChart extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(999.r),
                   ),
                   child: Text(
-                    'Cheapest ${weekdayLabel(cheapestIndex)} ${PriceFormatter.format(minPrice)}',
+                    'Cheapest ${weekdayLabel(cheapestIndex)} ${PriceFormatter.format(minPrice, currency: selectedCurrency)}',
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.w800,

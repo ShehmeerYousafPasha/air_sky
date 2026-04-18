@@ -14,6 +14,7 @@ import 'package:air_sky/core/utils/account_required_prompt.dart';
 import 'package:air_sky/core/utils/app_feedback.dart';
 import 'package:air_sky/core/utils/date_time_utils.dart';
 import 'package:air_sky/core/utils/price_formatter.dart';
+import 'package:air_sky/features/ai_assistant/presentation/widgets/ai_assistant_entry_point.dart';
 import 'package:air_sky/features/booking/domain/entities/booking.dart';
 import 'package:air_sky/features/booking/domain/entities/passenger.dart';
 import 'package:air_sky/features/booking/presentation/controllers/booking_controller.dart';
@@ -186,78 +187,86 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Complete Booking')),
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: <Widget>[
-            Padding(
-              padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 0),
-              child: _StepProgressHeader(step: progressStep),
-            ),
-            if (state.errorMessage != null)
-              Container(
-                width: double.infinity,
-                margin: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 0),
-                padding: EdgeInsets.all(10.w),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.errorContainer,
-                  borderRadius: BorderRadius.circular(12.r),
+            Column(
+              children: <Widget>[
+                Padding(
+                  padding: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 0),
+                  child: _StepProgressHeader(step: progressStep),
                 ),
-                child: Text(state.errorMessage!),
-              ),
-            Expanded(
-              child: Container(
-                margin: EdgeInsets.fromLTRB(12.w, 8.h, 12.w, 0),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(18.r),
-                  border: Border.all(color: theme.colorScheme.outlineVariant),
-                  boxShadow: AppTheme.softShadows(context),
+                if (state.errorMessage != null)
+                  Container(
+                    width: double.infinity,
+                    margin: EdgeInsets.fromLTRB(16.w, 8.h, 16.w, 0),
+                    padding: EdgeInsets.all(10.w),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(12.r),
+                    ),
+                    child: Text(state.errorMessage!),
+                  ),
+                Expanded(
+                  child: Container(
+                    margin: EdgeInsets.fromLTRB(12.w, 8.h, 12.w, 0),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
+                      borderRadius: BorderRadius.circular(18.r),
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                      ),
+                      boxShadow: AppTheme.softShadows(context),
+                    ),
+                    child: Stepper(
+                      currentStep: state.currentStep,
+                      controlsBuilder:
+                          (BuildContext context, ControlsDetails details) =>
+                              const SizedBox.shrink(),
+                      onStepTapped: (_) {},
+                      steps: <Step>[
+                        Step(
+                          title: const Text('Passenger Info'),
+                          isActive: state.currentStep >= 0,
+                          content: _PassengerStep(
+                            formKey: _formKey,
+                            showValidationErrors:
+                                _showPassengerValidationErrors,
+                          ),
+                        ),
+                        Step(
+                          title: const Text('Seat Selection'),
+                          isActive: state.currentStep >= 1,
+                          content: _SeatStep(
+                            selectedSeat: state.selectedSeat,
+                            reservedSeats: _reservedSeats,
+                            onSelect: controller.selectSeat,
+                          ),
+                        ),
+                        Step(
+                          title: const Text('Review'),
+                          isActive: state.currentStep >= 2,
+                          content: _ReviewStep(
+                            flight: widget.flight,
+                            passenger: state.passenger,
+                            selectedSeat: state.selectedSeat,
+                          ),
+                        ),
+                        Step(
+                          title: const Text('Done'),
+                          isActive: state.currentStep >= 3,
+                          content: _SuccessStep(booking: state.createdBooking),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                child: Stepper(
-                  currentStep: state.currentStep,
-                  controlsBuilder:
-                      (BuildContext context, ControlsDetails details) =>
-                          const SizedBox.shrink(),
-                  onStepTapped: (_) {},
-                  steps: <Step>[
-                    Step(
-                      title: const Text('Passenger Info'),
-                      isActive: state.currentStep >= 0,
-                      content: _PassengerStep(
-                        formKey: _formKey,
-                        showValidationErrors: _showPassengerValidationErrors,
-                      ),
-                    ),
-                    Step(
-                      title: const Text('Seat Selection'),
-                      isActive: state.currentStep >= 1,
-                      content: _SeatStep(
-                        selectedSeat: state.selectedSeat,
-                        reservedSeats: _reservedSeats,
-                        onSelect: controller.selectSeat,
-                      ),
-                    ),
-                    Step(
-                      title: const Text('Review'),
-                      isActive: state.currentStep >= 2,
-                      content: _ReviewStep(
-                        flight: widget.flight,
-                        passenger: state.passenger,
-                        selectedSeat: state.selectedSeat,
-                      ),
-                    ),
-                    Step(
-                      title: const Text('Done'),
-                      isActive: state.currentStep >= 3,
-                      content: _SuccessStep(booking: state.createdBooking),
-                    ),
-                  ],
+                Padding(
+                  padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 12.h),
+                  child: _buildActions(context, state, controller),
                 ),
-              ),
+              ],
             ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(16.w, 0, 16.w, 12.h),
-              child: _buildActions(context, state, controller),
-            ),
+            const AiAssistantEntryPoint(),
           ],
         ),
       ),

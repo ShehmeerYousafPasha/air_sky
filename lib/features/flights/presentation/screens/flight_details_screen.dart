@@ -10,6 +10,7 @@ import 'package:air_sky/core/theme/app_theme.dart';
 import 'package:air_sky/core/utils/account_required_prompt.dart';
 import 'package:air_sky/core/utils/date_time_utils.dart';
 import 'package:air_sky/core/utils/price_formatter.dart';
+import 'package:air_sky/features/ai_assistant/presentation/widgets/ai_assistant_entry_point.dart';
 import 'package:air_sky/features/flights/domain/entities/flight.dart';
 import 'package:air_sky/shared/widgets/app_primary_button.dart';
 
@@ -28,133 +29,144 @@ class FlightDetailsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Flight details')),
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 10.h),
+      body: Stack(
         children: <Widget>[
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface,
-              borderRadius: BorderRadius.circular(18.r),
-              border: Border.all(color: theme.colorScheme.outlineVariant),
-              boxShadow: AppTheme.softShadows(context),
-            ),
-            child: Padding(
-              padding: EdgeInsets.all(14.w),
-              child: Row(
-                children: <Widget>[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10.r),
-                    child: CachedNetworkImage(
-                      imageUrl: flight.airlineLogo,
-                      width: 50.w,
-                      height: 50.w,
-                      fit: BoxFit.cover,
-                      errorWidget:
-                          (BuildContext context, String url, Object error) =>
-                              Container(
+          ListView(
+            padding: EdgeInsets.fromLTRB(16.w, 10.h, 16.w, 10.h),
+            children: <Widget>[
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18.r),
+                  border: Border.all(color: theme.colorScheme.outlineVariant),
+                  boxShadow: AppTheme.softShadows(context),
+                ),
+                child: Padding(
+                  padding: EdgeInsets.all(14.w),
+                  child: Row(
+                    children: <Widget>[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10.r),
+                        child: CachedNetworkImage(
+                          imageUrl: flight.airlineLogo,
+                          width: 50.w,
+                          height: 50.w,
+                          fit: BoxFit.cover,
+                          errorWidget:
+                              (
+                                BuildContext context,
+                                String url,
+                                Object error,
+                              ) => Container(
                                 width: 50.w,
                                 height: 50.w,
                                 color:
                                     theme.colorScheme.surfaceContainerHighest,
                                 child: const Icon(Icons.flight),
                               ),
-                    ),
-                  ),
-                  SizedBox(width: 12.w),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          flight.airline,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
                         ),
-                        Text(
-                          'Flight ${flight.id}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
+                      ),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            Text(
+                              flight.airline,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              'Flight ${flight.id}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      Text(
+                        PriceFormatter.format(flight.price),
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    PriceFormatter.format(flight.price),
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              SizedBox(height: 10.h),
+              _SectionCard(
+                title: 'Itinerary timeline',
+                child: Column(
+                  children: <Widget>[
+                    _TimelineEntry(
+                      airport: flight.fromAirport,
+                      timeLabel:
+                          '${flight.departureTime.toTicketDate()} ${flight.departureTime.toTimeLabel()}',
+                      subtitle: 'Departure',
+                      isFirst: true,
+                    ),
+                    ...flight.layovers.map(
+                      (String stop) => _TimelineEntry(
+                        airport: stop,
+                        timeLabel: 'Layover stop',
+                        subtitle: 'Transfer',
+                      ),
+                    ),
+                    _TimelineEntry(
+                      airport: flight.toAirport,
+                      timeLabel:
+                          '${flight.arrivalTime.toTicketDate()} ${flight.arrivalTime.toTimeLabel()}',
+                      subtitle: 'Arrival',
+                      isLast: true,
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 10.h),
+              _SectionCard(
+                title: 'Flight info',
+                child: Column(
+                  children: <Widget>[
+                    _DetailRow(label: 'Duration', value: flight.durationLabel),
+                    _DetailRow(label: 'Cabin', value: flight.cabinClass),
+                    _DetailRow(label: 'Stops', value: flight.stopsLabel),
+                  ],
+                ),
+              ),
+              SizedBox(height: 10.h),
+              _SectionCard(
+                title: 'Price breakdown',
+                child: Column(
+                  children: <Widget>[
+                    _DetailRow(
+                      label: 'Base fare',
+                      value: PriceFormatter.format(baseFare),
+                    ),
+                    _DetailRow(
+                      label: 'Taxes',
+                      value: PriceFormatter.format(taxes),
+                    ),
+                    _DetailRow(
+                      label: 'Service fee',
+                      value: PriceFormatter.format(serviceFee),
+                    ),
+                    Divider(height: 18.h),
+                    _DetailRow(
+                      label: 'Total',
+                      value: PriceFormatter.format(flight.price),
+                      isHighlighted: true,
+                    ),
+                  ],
+                ),
+              ),
+              SizedBox(height: 80.h),
+            ],
           ),
-          SizedBox(height: 10.h),
-          _SectionCard(
-            title: 'Itinerary timeline',
-            child: Column(
-              children: <Widget>[
-                _TimelineEntry(
-                  airport: flight.fromAirport,
-                  timeLabel:
-                      '${flight.departureTime.toTicketDate()} ${flight.departureTime.toTimeLabel()}',
-                  subtitle: 'Departure',
-                  isFirst: true,
-                ),
-                ...flight.layovers.map(
-                  (String stop) => _TimelineEntry(
-                    airport: stop,
-                    timeLabel: 'Layover stop',
-                    subtitle: 'Transfer',
-                  ),
-                ),
-                _TimelineEntry(
-                  airport: flight.toAirport,
-                  timeLabel:
-                      '${flight.arrivalTime.toTicketDate()} ${flight.arrivalTime.toTimeLabel()}',
-                  subtitle: 'Arrival',
-                  isLast: true,
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 10.h),
-          _SectionCard(
-            title: 'Flight info',
-            child: Column(
-              children: <Widget>[
-                _DetailRow(label: 'Duration', value: flight.durationLabel),
-                _DetailRow(label: 'Cabin', value: flight.cabinClass),
-                _DetailRow(label: 'Stops', value: flight.stopsLabel),
-              ],
-            ),
-          ),
-          SizedBox(height: 10.h),
-          _SectionCard(
-            title: 'Price breakdown',
-            child: Column(
-              children: <Widget>[
-                _DetailRow(
-                  label: 'Base fare',
-                  value: PriceFormatter.format(baseFare),
-                ),
-                _DetailRow(label: 'Taxes', value: PriceFormatter.format(taxes)),
-                _DetailRow(
-                  label: 'Service fee',
-                  value: PriceFormatter.format(serviceFee),
-                ),
-                Divider(height: 18.h),
-                _DetailRow(
-                  label: 'Total',
-                  value: PriceFormatter.format(flight.price),
-                  isHighlighted: true,
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 80.h),
+          const AiAssistantEntryPoint(),
         ],
       ),
       bottomNavigationBar: SafeArea(
