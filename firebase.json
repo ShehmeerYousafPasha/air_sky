@@ -1,0 +1,26 @@
+{
+	"firestore": {
+		"rules": "firestore.rules"
+	},
+	"flutter": {
+		"platforms": {
+			"android": {
+				"default": {
+					"projectId": "airsky-book-fly-785767",
+					"appId": "1:968530155421:android:50b1daee100dc0e6e70174",
+					"fileOutput": "android/app/google-services.json"
+				}
+			},
+			"dart": {
+				"lib/firebase_options.dart": {
+					"projectId": "airsky-book-fly-785767",
+					"configurations": {
+						"android": "1:968530155421:android:50b1daee100dc0e6e70174",
+						"web": "1:968530155421:web:f4b1ccc985348943e70174",
+						"windows": "1:968530155421:web:1826e9d05bb57560e70174"
+					}
+				}
+			}
+		}
+	}
+}

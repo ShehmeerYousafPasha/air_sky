@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function canMovePaymentToProcessing(userId) {
+      return isOwner(userId)
+        && resource.data.userId == userId
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.flight == resource.data.flight
+        && request.resource.data.passenger == resource.data.passenger
+        && request.resource.data.seatNumber == resource.data.seatNumber
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.psid == resource.data.psid
+        && request.resource.data.amount == resource.data.amount
+        && request.resource.data.currency == resource.data.currency
+        && request.resource.data.paymentDueAt == resource.data.paymentDueAt
+        && request.resource.data.paymentStatus == 'payment_processing'
+        && request.resource.data.paymentMethod == 'dummy_local'
+        && request.resource.data.paidAt == null
+        && request.resource.data.providerTransactionId.matches('^DUMMY-[0-9]{13}-[A-Z0-9]{6}$')
+        && resource.data.paymentStatus == 'unpaid';
+    }
+
+    function canMovePaymentToPaid(userId) {
+      return isOwner(userId)
+        && resource.data.userId == userId
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.flight == resource.data.flight
+        && request.resource.data.passenger == resource.data.passenger
+        && request.resource.data.seatNumber == resource.data.seatNumber
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.psid == resource.data.psid
+        && request.resource.data.amount == resource.data.amount
+        && request.resource.data.currency == resource.data.currency
+        && request.resource.data.paymentDueAt == resource.data.paymentDueAt
+        && request.resource.data.paymentStatus == 'paid'
+        && request.resource.data.paymentMethod == 'dummy_local'
+        && request.resource.data.paidAt is int
+        && request.resource.data.providerTransactionId.matches('^TXN-[A-Z0-9]{8,20}$')
+        && resource.data.providerTransactionId.matches('^DUMMY-[0-9]{13}-[A-Z0-9]{6}$')
+        && resource.data.paymentStatus == 'payment_processing'
+        && resource.data.paymentMethod == 'dummy_local';
+    }
+
+    match /users/{userId} {
+      allow read, create, update: if isOwner(userId);
+      allow delete: if false;
+
+      match /bookings/{bookingId} {
+        allow read: if isOwner(userId);
+
+        // Client can only create an unpaid booking.
+        allow create: if isOwner(userId)
+          && request.resource.data.userId == userId
+          && request.resource.data.paymentStatus == 'unpaid'
+          && request.resource.data.paymentMethod == 'psid'
+          && request.resource.data.paidAt == null;
+
+        // Spark-compatible dummy fallback: allow only strict unpaid ->
+        // payment_processing -> paid transitions.
+        allow update: if canMovePaymentToProcessing(userId)
+          || canMovePaymentToPaid(userId);
+        allow delete: if false;
+      }
+    }
+  }
+}
