@@ -130,6 +130,10 @@ class AiParsedIntent {
     this.wantsCompareOptions = false,
     this.wantsSurpriseDestination = false,
     this.wantsCheapestBookedFlight = false,
+    this.maxStops,
+    this.prefersMorningDeparture = false,
+    this.prefersEveningDeparture = false,
+    this.refersToPreviousResults = false,
     this.selectionIndex,
   });
 
@@ -154,6 +158,10 @@ class AiParsedIntent {
   final bool wantsCompareOptions;
   final bool wantsSurpriseDestination;
   final bool wantsCheapestBookedFlight;
+  final int? maxStops;
+  final bool prefersMorningDeparture;
+  final bool prefersEveningDeparture;
+  final bool refersToPreviousResults;
   final int? selectionIndex;
 }
 

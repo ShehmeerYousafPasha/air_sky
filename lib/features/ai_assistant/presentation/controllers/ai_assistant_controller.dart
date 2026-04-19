@@ -57,6 +57,10 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
     state = state.copyWith(isWorking: true, clearPendingNavigation: true);
 
     final AiParsedIntent intent = _assistant.parseIntent(cleanedPrompt);
+    final SearchFormState contextualSearchForm = _resolveSearchContextForm(
+      intent: intent,
+      currentSearchForm: currentSearchForm,
+    );
 
     try {
       if (intent.wantsCheapestBookedFlight) {
@@ -94,22 +98,22 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
 
       final _ResolvedSearch resolved = await _resolveSearch(
         intent: intent,
-        currentSearchForm: currentSearchForm,
+        currentSearchForm: contextualSearchForm,
       );
 
       final List<Flight> rawFlights =
           resolved.preloadedFlights ??
           await _flightRepository.searchFlights(resolved.query);
-      final List<Flight> filteredFlights = _assistant.applyBudgetFilter(
+      final List<Flight> budgetFilteredFlights = _assistant.applyBudgetFilter(
         rawFlights,
         intent.maxBudgetUsd,
       );
       final bool hasBudget = intent.maxBudgetUsd != null;
-      final List<Flight> effectiveFlights = hasBudget
-          ? filteredFlights
+      final List<Flight> budgetEffectiveFlights = hasBudget
+          ? budgetFilteredFlights
           : rawFlights;
 
-      if (effectiveFlights.isEmpty) {
+      if (budgetEffectiveFlights.isEmpty) {
         final bool canShowCheapestAction =
             intent.maxBudgetUsd != null && rawFlights.isNotEmpty;
         final String cheapestActionLabel = _cheapestActionLabelForDate(
@@ -152,6 +156,19 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
         return;
       }
 
+      final bool hasPreferenceFilters = _assistant.hasPreferenceFilters(intent);
+      final List<Flight> preferenceFilteredFlights = _assistant
+          .applyPreferenceFilter(budgetEffectiveFlights, intent: intent);
+      final bool matchedPreferenceFilters =
+          !hasPreferenceFilters || preferenceFilteredFlights.isNotEmpty;
+      final List<Flight> effectiveFlights = matchedPreferenceFilters
+          ? preferenceFilteredFlights
+          : budgetEffectiveFlights;
+
+      final List<Flight> historicalFlights = await _loadBookingHistoryFlights(
+        currentUserId: currentUserId,
+      );
+
       final AiFlightRecommendations recommendations = _assistant
           .buildRecommendations(
             flights: effectiveFlights,
@@ -159,6 +176,7 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
             travelDate: resolved.query.date,
             fromAirport: resolved.query.fromAirport,
             toAirport: resolved.query.toAirport,
+            historicalFlights: historicalFlights,
           );
 
       final String assistantReply = _buildSearchReply(
@@ -169,6 +187,8 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
         budgetUsd: intent.maxBudgetUsd,
         budgetFromPkr: intent.budgetFromPkr,
         anywhereSummary: resolved.anywhereSummary,
+        hasPreferenceFilters: hasPreferenceFilters,
+        matchedPreferenceFilters: matchedPreferenceFilters,
       );
 
       _appendAssistantReply(assistantReply);
@@ -347,12 +367,16 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
 
   bool _shouldRunSearch(AiParsedIntent intent) {
     return intent.wantsResults ||
+        intent.refersToPreviousResults ||
         intent.wantsAnywhereSearch ||
         intent.wantsSurpriseDestination ||
         intent.originCode != null ||
         intent.destinationCode != null ||
         intent.travelDate != null ||
         intent.maxBudgetUsd != null ||
+        intent.maxStops != null ||
+        intent.prefersMorningDeparture ||
+        intent.prefersEveningDeparture ||
         intent.passengerCount != null ||
         intent.wantsCheapest ||
         intent.wantsFastest ||
@@ -456,6 +480,14 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
       return flights[bounded];
     }
 
+    final List<Flight> preferenceMatches = _assistant.applyPreferenceFilter(
+      flights,
+      intent: intent,
+    );
+    final List<Flight> selectionPool = preferenceMatches.isNotEmpty
+        ? preferenceMatches
+        : flights;
+
     final AiFlightRecommendations? recommendations = state.recommendations;
     if (recommendations != null) {
       String targetId = recommendations.recommendedFlightId;
@@ -467,6 +499,12 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
         targetId = recommendations.bestValueFlightId;
       }
 
+      for (final Flight flight in selectionPool) {
+        if (flight.id == targetId) {
+          return flight;
+        }
+      }
+
       for (final Flight flight in flights) {
         if (flight.id == targetId) {
           return flight;
@@ -474,7 +512,125 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
       }
     }
 
+    return _pickFlightByIntent(selectionPool, intent);
+  }
+
+  Flight _pickFlightByIntent(List<Flight> flights, AiParsedIntent intent) {
+    if (flights.isEmpty) {
+      throw StateError('No flights available for selection.');
+    }
+
+    if (intent.wantsFastest) {
+      return flights.reduce(
+        (Flight a, Flight b) => a.durationMinutes <= b.durationMinutes ? a : b,
+      );
+    }
+
+    if (intent.wantsCheapest) {
+      return flights.reduce((Flight a, Flight b) => a.price <= b.price ? a : b);
+    }
+
+    if (intent.wantsBestOption) {
+      return flights.reduce((Flight a, Flight b) {
+        final double scoreA =
+            (a.price * 0.6) + (a.durationMinutes * 0.35) + (a.stops * 120);
+        final double scoreB =
+            (b.price * 0.6) + (b.durationMinutes * 0.35) + (b.stops * 120);
+        return scoreA <= scoreB ? a : b;
+      });
+    }
+
     return flights.first;
+  }
+
+  SearchFormState _resolveSearchContextForm({
+    required AiParsedIntent intent,
+    required SearchFormState currentSearchForm,
+  }) {
+    final FlightSearchQuery? lastQuery = state.lastQuery;
+    if (lastQuery == null) {
+      return currentSearchForm;
+    }
+
+    final bool hasExplicitRoute =
+        intent.originCode != null || intent.destinationCode != null;
+    final bool hasExplicitTripData =
+        intent.travelDate != null || intent.passengerCount != null;
+    final bool hasRefinementOnly =
+        intent.maxBudgetUsd != null ||
+        intent.maxStops != null ||
+        intent.prefersMorningDeparture ||
+        intent.prefersEveningDeparture ||
+        intent.wantsCheapest ||
+        intent.wantsFastest ||
+        intent.wantsBestOption;
+
+    final bool shouldUseLastQuery =
+        intent.refersToPreviousResults ||
+        (!hasExplicitRoute && !hasExplicitTripData && hasRefinementOnly);
+
+    if (!shouldUseLastQuery) {
+      return currentSearchForm;
+    }
+
+    return currentSearchForm.copyWith(
+      fromAirport: lastQuery.fromAirport,
+      toAirport: lastQuery.toAirport,
+      date: lastQuery.date,
+      passengers: lastQuery.passengers,
+      cabinClass: lastQuery.cabinClass,
+    );
+  }
+
+  Future<List<Flight>> _loadBookingHistoryFlights({
+    required String? currentUserId,
+  }) async {
+    if (currentUserId == null || currentUserId.trim().isEmpty) {
+      return const <Flight>[];
+    }
+
+    try {
+      final List<Booking> bookings = await _bookingRepository
+          .watchUserBookings(currentUserId)
+          .first;
+      return bookings
+          .map((Booking value) => value.flight)
+          .toList(growable: false);
+    } catch (_) {
+      return const <Flight>[];
+    }
+  }
+
+  double _routePreferenceScore(
+    AiRouteCandidate candidate,
+    AiParsedIntent intent,
+  ) {
+    final List<Flight> flights = candidate.flights;
+    final Flight cheapest = flights.reduce(
+      (Flight a, Flight b) => a.price <= b.price ? a : b,
+    );
+
+    if (intent.wantsFastest) {
+      final Flight fastest = flights.reduce(
+        (Flight a, Flight b) => a.durationMinutes <= b.durationMinutes ? a : b,
+      );
+      return fastest.durationMinutes.toDouble();
+    }
+
+    if (intent.wantsBestOption) {
+      final Flight best = _pickFlightByIntent(
+        flights,
+        const AiParsedIntent(rawInput: '', wantsBestOption: true),
+      );
+      return (best.price * 0.6) +
+          (best.durationMinutes * 0.35) +
+          (best.stops * 120);
+    }
+
+    final int minStops = flights
+        .map((Flight value) => value.stops)
+        .reduce(math.min);
+    return (cheapest.price * 1.0) + (minStops * 120);
   }
 
   Future<_ResolvedSearch> _resolveSearch({
@@ -548,13 +704,14 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
     );
 
     final List<AiRouteCandidate> ranked = <AiRouteCandidate>[];
+    final bool hasPreferenceFilters = _assistant.hasPreferenceFilters(intent);
     for (int i = 0; i < queries.length; i++) {
       final List<Flight> budgetFilteredFlights = _assistant.applyBudgetFilter(
         allResults[i],
         intent.maxBudgetUsd,
       );
 
-      final List<Flight> effective;
+      List<Flight> effective;
       if (intent.maxBudgetUsd != null) {
         if (budgetFilteredFlights.isEmpty) {
           continue;
@@ -565,6 +722,17 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
       }
       if (effective.isEmpty) {
         continue;
+      }
+
+      if (hasPreferenceFilters) {
+        final List<Flight> preferenceMatches = _assistant.applyPreferenceFilter(
+          effective,
+          intent: intent,
+        );
+        if (preferenceMatches.isEmpty) {
+          continue;
+        }
+        effective = preferenceMatches;
       }
 
       final double cheapest = effective
@@ -591,6 +759,12 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
     }
 
     ranked.sort((AiRouteCandidate a, AiRouteCandidate b) {
+      final double scoreA = _routePreferenceScore(a, intent);
+      final double scoreB = _routePreferenceScore(b, intent);
+      final int byScore = scoreA.compareTo(scoreB);
+      if (byScore != 0) {
+        return byScore;
+      }
       return a.cheapestPrice.compareTo(b.cheapestPrice);
     });
 
@@ -685,6 +859,8 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
     required double? budgetUsd,
     required bool budgetFromPkr,
     required List<String> anywhereSummary,
+    required bool hasPreferenceFilters,
+    required bool matchedPreferenceFilters,
   }) {
     final Flight recommended = flights.firstWhere(
       (Flight f) => f.id == recommendations.recommendedFlightId,
@@ -701,6 +877,17 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
       lines.add(
         'Applied budget filter: up to ${PriceFormatter.format(budgetUsd)}$source.',
       );
+    }
+
+    if (hasPreferenceFilters) {
+      final String summary = _assistant.preferenceSummary(intent);
+      if (matchedPreferenceFilters) {
+        lines.add('Applied travel preference: $summary.');
+      } else {
+        lines.add(
+          'I could not find exact matches for $summary, so I kept the closest available options on this route.',
+        );
+      }
     }
 
     if (anywhereSummary.isNotEmpty) {

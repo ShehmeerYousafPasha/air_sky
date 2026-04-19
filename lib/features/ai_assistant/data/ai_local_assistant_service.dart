@@ -29,6 +29,8 @@ class AiLocalAssistantService {
   static const Map<String, String> _cityToAirport = <String, String>{
     'islamabad': 'ISB',
     'isb': 'ISB',
+    'singapore': 'SIN',
+    'sin': 'SIN',
     'dubai': 'DXB',
     'dxb': 'DXB',
     'london': 'LHR',
@@ -46,6 +48,7 @@ class AiLocalAssistantService {
 
   static const Set<String> _knownAirportCodes = <String>{
     'ISB',
+    'SIN',
     'DXB',
     'LHR',
     'IST',
@@ -93,6 +96,7 @@ class AiLocalAssistantService {
 
   static const Map<String, String> _airportDisplayNames = <String, String>{
     'ISB': 'Islamabad',
+    'SIN': 'Singapore',
     'DXB': 'Dubai',
     'LHR': 'London',
     'IST': 'Istanbul',
@@ -144,6 +148,37 @@ class AiLocalAssistantService {
         lower.contains('best') ||
         lower.contains('recommended') ||
         lower.contains('best value');
+    final bool wantsDirectOnly =
+        _hasAnyPhrase(lower, const <String>[
+          'non stop',
+          'non-stop',
+          'direct flight',
+          'direct only',
+          'without stop',
+          'zero stop',
+        ]) ||
+        lower.contains('nonstop');
+    final int? maxStops = _extractMaxStops(
+      lower,
+      directPreference: wantsDirectOnly,
+    );
+
+    final bool prefersMorningDeparture = _hasAnyPhrase(lower, const <String>[
+      'morning flight',
+      'morning flights',
+      'early morning',
+      'in the morning',
+      'morning departure',
+    ]);
+    final bool prefersEveningDeparture = _hasAnyPhrase(lower, const <String>[
+      'evening flight',
+      'evening flights',
+      'night flight',
+      'night flights',
+      'late night',
+      'in the evening',
+      'tonight',
+    ]);
 
     final bool wantsDetails =
         lower.contains('details') ||
@@ -180,6 +215,26 @@ class AiLocalAssistantService {
             lower.contains('my trips') ||
             lower.contains('my trip') ||
             lower.contains('all bookings'));
+
+    final bool refersToPreviousResults =
+        _hasAnyPhrase(lower, const <String>[
+          'this one',
+          'that one',
+          'these options',
+          'those options',
+          'these flights',
+          'those flights',
+          'these results',
+          'those results',
+          'same route',
+          'same trip',
+          'same date',
+          'same search',
+        ]) ||
+        (selectionIndex != null &&
+            originCode == null &&
+            destinationCode == null &&
+            date == null);
 
     final bool hasSearchContext =
         originCode != null ||
@@ -233,6 +288,10 @@ class AiLocalAssistantService {
       wantsCompareOptions: wantsCompareOptions,
       wantsSurpriseDestination: wantsSurpriseDestination,
       wantsCheapestBookedFlight: wantsCheapestBookedFlight,
+      maxStops: maxStops,
+      prefersMorningDeparture: prefersMorningDeparture,
+      prefersEveningDeparture: prefersEveningDeparture,
+      refersToPreviousResults: refersToPreviousResults,
       selectionIndex: selectionIndex,
     );
   }
@@ -374,12 +433,63 @@ class AiLocalAssistantService {
     return flights.where((Flight f) => f.price <= maxBudgetUsd).toList();
   }
 
+  bool hasPreferenceFilters(AiParsedIntent intent) {
+    return intent.maxStops != null ||
+        intent.prefersMorningDeparture ||
+        intent.prefersEveningDeparture;
+  }
+
+  String preferenceSummary(AiParsedIntent intent) {
+    final List<String> parts = <String>[];
+    if (intent.maxStops != null) {
+      if (intent.maxStops == 0) {
+        parts.add('non-stop');
+      } else {
+        parts.add(
+          'up to ${intent.maxStops} stop${intent.maxStops == 1 ? '' : 's'}',
+        );
+      }
+    }
+
+    if (intent.prefersMorningDeparture && intent.prefersEveningDeparture) {
+      parts.add('morning or evening departure');
+    } else if (intent.prefersMorningDeparture) {
+      parts.add('morning departure');
+    } else if (intent.prefersEveningDeparture) {
+      parts.add('evening departure');
+    }
+
+    return parts.join(', ');
+  }
+
+  List<Flight> applyPreferenceFilter(
+    List<Flight> flights, {
+    required AiParsedIntent intent,
+  }) {
+    if (!hasPreferenceFilters(intent)) {
+      return flights;
+    }
+
+    return flights.where((Flight flight) {
+      if (intent.maxStops != null && flight.stops > intent.maxStops!) {
+        return false;
+      }
+
+      if (!_matchesDeparturePreference(flight, intent)) {
+        return false;
+      }
+
+      return true;
+    }).toList();
+  }
+
   AiFlightRecommendations buildRecommendations({
     required List<Flight> flights,
     required AiParsedIntent intent,
     required DateTime travelDate,
     required String fromAirport,
     required String toAirport,
+    List<Flight> historicalFlights = const <Flight>[],
   }) {
     final Flight cheapest = flights.reduce(
       (Flight a, Flight b) => a.price <= b.price ? a : b,
@@ -389,17 +499,54 @@ class AiLocalAssistantService {
     );
     final Flight bestValue = _bestValueFlight(flights);
 
-    final Flight recommended = intent.wantsFastest
-        ? fastest
-        : intent.wantsCheapest
-        ? cheapest
-        : bestValue;
+    late Flight recommended;
+    late String recommendedReason;
 
-    final String recommendedReason = intent.wantsFastest
-        ? 'Fastest overall route'
-        : intent.wantsCheapest
-        ? 'Lowest available fare'
-        : 'Best value across price, time, and stops';
+    if (intent.wantsFastest) {
+      recommended = fastest;
+      recommendedReason = 'Fastest overall route';
+    } else if (intent.wantsCheapest) {
+      recommended = cheapest;
+      recommendedReason = 'Lowest available fare';
+    } else {
+      recommended = bestValue;
+      recommendedReason = 'Best value across price, time, and stops';
+
+      final _UserTravelProfile profile = _buildUserTravelProfile(
+        historicalFlights,
+      );
+      if (!profile.isEmpty) {
+        final List<_ScoredFlight> rankedByProfile =
+            flights
+                .map(
+                  (Flight flight) => _ScoredFlight(
+                    flight: flight,
+                    score: _profileMatchScore(flight, profile),
+                  ),
+                )
+                .toList(growable: false)
+              ..sort((_ScoredFlight a, _ScoredFlight b) {
+                final int scoreOrder = b.score.compareTo(a.score);
+                if (scoreOrder != 0) {
+                  return scoreOrder;
+                }
+                return a.flight.price.compareTo(b.flight.price);
+              });
+
+        if (rankedByProfile.isNotEmpty && rankedByProfile.first.score > 0) {
+          final double topScore = rankedByProfile.first.score;
+          final List<Flight> topMatches = rankedByProfile
+              .where(
+                (_ScoredFlight value) =>
+                    (topScore - value.score).abs() < 0.0001,
+              )
+              .map((_ScoredFlight value) => value.flight)
+              .toList(growable: false);
+          recommended = _bestValueFlight(topMatches);
+          recommendedReason = _buildPersonalizedReason(recommended, profile);
+        }
+      }
+    }
 
     return AiFlightRecommendations(
       recommendedFlightId: recommended.id,
@@ -479,6 +626,168 @@ class AiLocalAssistantService {
     return 'This date has moderate demand pressure; monitoring daily is recommended.';
   }
 
+  bool _matchesDeparturePreference(Flight flight, AiParsedIntent intent) {
+    if (!intent.prefersMorningDeparture && !intent.prefersEveningDeparture) {
+      return true;
+    }
+
+    if (intent.prefersMorningDeparture && intent.prefersEveningDeparture) {
+      return true;
+    }
+
+    final int hour = flight.departureTime.hour;
+    if (intent.prefersMorningDeparture) {
+      return hour >= 5 && hour < 12;
+    }
+    if (intent.prefersEveningDeparture) {
+      return hour >= 17 || hour < 1;
+    }
+
+    return true;
+  }
+
+  _UserTravelProfile _buildUserTravelProfile(List<Flight> historicalFlights) {
+    if (historicalFlights.isEmpty) {
+      return const _UserTravelProfile();
+    }
+
+    final Map<String, int> airlineCounts = <String, int>{};
+    final Map<String, int> cabinCounts = <String, int>{};
+    final Map<String, int> destinationCounts = <String, int>{};
+    final Map<_DepartureBucket, int> departureBucketCounts =
+        <_DepartureBucket, int>{};
+
+    for (final Flight flight in historicalFlights) {
+      airlineCounts.update(
+        flight.airline,
+        (int value) => value + 1,
+        ifAbsent: () => 1,
+      );
+      cabinCounts.update(
+        flight.cabinClass,
+        (int value) => value + 1,
+        ifAbsent: () => 1,
+      );
+      destinationCounts.update(
+        flight.toAirport,
+        (int value) => value + 1,
+        ifAbsent: () => 1,
+      );
+
+      final _DepartureBucket bucket = _departureBucketFor(
+        flight.departureTime.hour,
+      );
+      departureBucketCounts.update(
+        bucket,
+        (int value) => value + 1,
+        ifAbsent: () => 1,
+      );
+    }
+
+    return _UserTravelProfile(
+      preferredAirline: _mostFrequentString(airlineCounts),
+      preferredCabinClass: _mostFrequentString(cabinCounts),
+      preferredDestination: _mostFrequentString(destinationCounts),
+      preferredDepartureBucket: _mostFrequentBucket(departureBucketCounts),
+    );
+  }
+
+  double _profileMatchScore(Flight flight, _UserTravelProfile profile) {
+    double score = 0;
+
+    if (profile.preferredAirline != null &&
+        flight.airline == profile.preferredAirline) {
+      score += 1.6;
+    }
+
+    if (profile.preferredCabinClass != null &&
+        flight.cabinClass == profile.preferredCabinClass) {
+      score += 1.0;
+    }
+
+    if (profile.preferredDestination != null &&
+        flight.toAirport == profile.preferredDestination) {
+      score += 1.2;
+    }
+
+    if (profile.preferredDepartureBucket != null &&
+        _departureBucketFor(flight.departureTime.hour) ==
+            profile.preferredDepartureBucket) {
+      score += 0.8;
+    }
+
+    return score;
+  }
+
+  String _buildPersonalizedReason(
+    Flight recommended,
+    _UserTravelProfile profile,
+  ) {
+    final List<String> reasons = <String>[];
+
+    if (profile.preferredAirline != null &&
+        recommended.airline == profile.preferredAirline) {
+      reasons.add('matches your frequent airline preference');
+    }
+    if (profile.preferredDestination != null &&
+        recommended.toAirport == profile.preferredDestination) {
+      reasons.add('aligns with your usual destinations');
+    }
+    if (profile.preferredDepartureBucket != null &&
+        _departureBucketFor(recommended.departureTime.hour) ==
+            profile.preferredDepartureBucket) {
+      reasons.add('fits your common departure timing');
+    }
+
+    if (reasons.isEmpty) {
+      return 'Best value across price, time, and stops';
+    }
+
+    return 'Personalized best value that ${reasons.first}';
+  }
+
+  _DepartureBucket _departureBucketFor(int hour) {
+    if (hour >= 5 && hour < 12) {
+      return _DepartureBucket.morning;
+    }
+    if (hour >= 17 || hour < 1) {
+      return _DepartureBucket.evening;
+    }
+    return _DepartureBucket.daytime;
+  }
+
+  String? _mostFrequentString(Map<String, int> counts) {
+    if (counts.isEmpty) {
+      return null;
+    }
+
+    String? bestKey;
+    int bestValue = -1;
+    counts.forEach((String key, int value) {
+      if (value > bestValue) {
+        bestKey = key;
+        bestValue = value;
+      }
+    });
+    return bestKey;
+  }
+
+  _DepartureBucket? _mostFrequentBucket(Map<_DepartureBucket, int> counts) {
+    if (counts.isEmpty) {
+      return null;
+    }
+
+    _DepartureBucket? bestKey;
+    int bestValue = -1;
+    counts.forEach((_DepartureBucket key, int value) {
+      if (value > bestValue) {
+        bestKey = key;
+        bestValue = value;
+      }
+    });
+    return bestKey;
+  }
+
   Flight _bestValueFlight(List<Flight> flights) {
     final double minPrice = flights.map((Flight f) => f.price).reduce(math.min);
     final double maxPrice = flights.map((Flight f) => f.price).reduce(math.max);
@@ -520,6 +829,27 @@ class AiLocalAssistantService {
       }
 
       return value.clamp(1, 9);
+    }
+
+    return null;
+  }
+
+  int? _extractMaxStops(String lowerInput, {required bool directPreference}) {
+    if (directPreference) {
+      return 0;
+    }
+
+    final Match? stopMatch = RegExp(
+      r'\b(\d+)\s*stop(?:s)?\b',
+    ).firstMatch(lowerInput);
+    final int? parsedStops = int.tryParse(stopMatch?.group(1) ?? '');
+    if (parsedStops != null) {
+      return parsedStops.clamp(0, 3);
+    }
+
+    if (_hasAnyPhrase(lowerInput, const <String>['non stop', 'non-stop']) ||
+        lowerInput.contains('nonstop')) {
+      return 0;
     }
 
     return null;
@@ -819,6 +1149,20 @@ class AiLocalAssistantService {
     return false;
   }
 
+  bool _hasAnyPhrase(String input, List<String> phrases) {
+    for (final String phrase in phrases) {
+      if (_hasPhrase(input, phrase)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _hasPhrase(String input, String phrase) {
+    final String pattern = RegExp.escape(phrase).replaceAll(r'\ ', r'\s+');
+    return RegExp('\\b$pattern\\b', caseSensitive: false).hasMatch(input);
+  }
+
   _BudgetResult _extractBudget(String lowerInput) {
     final Match? budgetMatch = _budgetPattern.firstMatch(lowerInput);
     if (budgetMatch == null) {
@@ -908,6 +1252,35 @@ class _BudgetResult {
   final double? maxBudgetUsd;
   final bool budgetFromPkr;
 }
+
+class _UserTravelProfile {
+  const _UserTravelProfile({
+    this.preferredAirline,
+    this.preferredCabinClass,
+    this.preferredDestination,
+    this.preferredDepartureBucket,
+  });
+
+  final String? preferredAirline;
+  final String? preferredCabinClass;
+  final String? preferredDestination;
+  final _DepartureBucket? preferredDepartureBucket;
+
+  bool get isEmpty =>
+      preferredAirline == null &&
+      preferredCabinClass == null &&
+      preferredDestination == null &&
+      preferredDepartureBucket == null;
+}
+
+class _ScoredFlight {
+  const _ScoredFlight({required this.flight, required this.score});
+
+  final Flight flight;
+  final double score;
+}
+
+enum _DepartureBucket { morning, daytime, evening }
 
 class _RouteExtraction {
   const _RouteExtraction({

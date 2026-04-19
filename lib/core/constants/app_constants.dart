@@ -1,7 +1,7 @@
 class AppConstants {
   const AppConstants._();
 
-  static const String appName = 'AirSky - Book & Fly';
+  static const String appName = 'AirSky: Book & Fly';
 
   static const List<String> airports = <String>[
     'ISB',
