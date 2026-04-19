@@ -8,6 +8,14 @@ class Passenger {
     required this.passportNumber,
   });
 
+  const Passenger.empty()
+    : firstName = '',
+      lastName = '',
+      email = '',
+      phone = '',
+      nationality = '',
+      passportNumber = '';
+
   final String firstName;
   final String lastName;
   final String email;
@@ -15,7 +23,10 @@ class Passenger {
   final String nationality;
   final String passportNumber;
 
-  String get fullName => '$firstName $lastName';
+  String get fullName {
+    final String value = '$firstName $lastName'.trim();
+    return value.isEmpty ? '-' : value;
+  }
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{

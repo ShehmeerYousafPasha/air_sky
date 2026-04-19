@@ -66,7 +66,10 @@ class _FlightResultCardState extends State<FlightResultCard> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10.r),
                         child: CachedNetworkImage(
-                          imageUrl: widget.flight.airlineLogo,
+                          imageUrl: Flight.sanitizeAirlineLogo(
+                            airline: widget.flight.airline,
+                            airlineLogo: widget.flight.airlineLogo,
+                          ),
                           width: 44.w,
                           height: 44.w,
                           fit: BoxFit.cover,

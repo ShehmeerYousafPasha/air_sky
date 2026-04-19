@@ -48,7 +48,10 @@ class FlightDetailsScreen extends ConsumerWidget {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10.r),
                         child: CachedNetworkImage(
-                          imageUrl: flight.airlineLogo,
+                          imageUrl: Flight.sanitizeAirlineLogo(
+                            airline: flight.airline,
+                            airlineLogo: flight.airlineLogo,
+                          ),
                           width: 50.w,
                           height: 50.w,
                           fit: BoxFit.cover,

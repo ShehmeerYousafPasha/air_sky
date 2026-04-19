@@ -124,6 +124,9 @@ class _TicketCardState extends State<TicketCard> {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final Booking booking = widget.booking;
+    final String compactPassengerSummary = booking.passengerCount == 1
+        ? '1 pax • Seat ${booking.seatNumber.trim().isEmpty ? '-' : booking.seatNumber}'
+        : '${booking.passengerCount} pax • Seats ${booking.seatSummary.trim().isEmpty ? '-' : booking.seatSummary}';
     final bool upcoming = booking.status == 'upcoming';
     final bool isPaid = booking.isPaid;
     final bool isProcessing = booking.paymentStatus == 'payment_processing';
@@ -266,6 +269,28 @@ class _TicketCardState extends State<TicketCard> {
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+              SizedBox(height: 6.h),
+              Row(
+                children: <Widget>[
+                  Icon(
+                    Icons.groups_2_outlined,
+                    size: 14.sp,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  SizedBox(width: 6.w),
+                  Expanded(
+                    child: Text(
+                      compactPassengerSummary,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               SizedBox(height: 8.h),
               Text(
                 isPaid
@@ -349,11 +374,15 @@ class _TicketCardState extends State<TicketCard> {
                             children: <Widget>[
                               _InfoChip(
                                 icon: Icons.person_outline_rounded,
-                                label: booking.passenger.fullName,
+                                label: booking.passengerCount == 1
+                                    ? booking.passenger.fullName
+                                    : '${booking.passengerCount} passengers',
                               ),
                               _InfoChip(
                                 icon: Icons.event_seat_outlined,
-                                label: 'Seat ${booking.seatNumber}',
+                                label: booking.passengerCount == 1
+                                    ? 'Seat ${booking.seatNumber}'
+                                    : 'Seats ${booking.seatSummary}',
                               ),
                               _InfoChip(
                                 icon: Icons.payments_outlined,
@@ -376,7 +405,7 @@ class _TicketCardState extends State<TicketCard> {
                                 padding: EdgeInsets.all(10.w),
                                 child: QrImageView(
                                   data:
-                                      '${booking.bookingId}|${booking.flight.id}|${booking.passenger.fullName}',
+                                      '${booking.bookingId}|${booking.flight.id}|${booking.passengerNamesLabel}',
                                   size: qrSize,
                                   backgroundColor: Colors.white,
                                 ),

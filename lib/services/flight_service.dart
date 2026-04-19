@@ -6,19 +6,6 @@ import 'package:air_sky/features/flights/domain/entities/flight_search_query.dar
 class FlightService {
   const FlightService();
 
-  static const Map<String, String> _airlineLogos = <String, String>{
-    'Emirates':
-        'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/Emirates_logo.svg/320px-Emirates_logo.svg.png',
-    'Qatar Airways':
-        'https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Qatar_Airways_Logo.svg/320px-Qatar_Airways_Logo.svg.png',
-    'Turkish Airlines':
-        'https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/Turkish_Airlines_logo_2019_compact.svg/320px-Turkish_Airlines_logo_2019_compact.svg.png',
-    'Etihad Airways':
-        'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/Etihad_Airways_Logo.svg/320px-Etihad_Airways_Logo.svg.png',
-    'PIA':
-        'https://upload.wikimedia.org/wikipedia/en/thumb/0/06/Pakistan_International_Airlines_logo.svg/320px-Pakistan_International_Airlines_logo.svg.png',
-  };
-
   static const List<String> _airlines = <String>[
     'Emirates',
     'Qatar Airways',
@@ -30,6 +17,7 @@ class FlightService {
   static const List<String> _airports = <String>[
     'ISB',
     'DXB',
+    'SIN',
     'LHR',
     'IST',
     'DOH',
@@ -38,14 +26,20 @@ class FlightService {
 
   static const Map<String, double> _routeDistanceKm = <String, double>{
     'ISB-DXB': 1920,
+    'ISB-SIN': 4780,
     'ISB-LHR': 6030,
     'ISB-IST': 3940,
     'ISB-DOH': 2270,
     'ISB-KHI': 1100,
+    'DXB-SIN': 5840,
     'DXB-LHR': 5500,
     'DXB-IST': 3000,
     'DXB-DOH': 390,
     'DXB-KHI': 1180,
+    'SIN-LHR': 10880,
+    'SIN-IST': 8680,
+    'SIN-DOH': 6210,
+    'SIN-KHI': 4760,
     'LHR-IST': 2490,
     'LHR-DOH': 5230,
     'LHR-KHI': 6320,
@@ -115,7 +109,7 @@ class FlightService {
         Flight(
           id: 'FLT-${query.routeKey}-$i',
           airline: airline,
-          airlineLogo: _airlineLogos[airline] ?? '',
+          airlineLogo: Flight.preferredLogoForAirline(airline),
           fromAirport: query.fromAirport,
           toAirport: query.toAirport,
           departureTime: departureTime,
@@ -125,6 +119,7 @@ class FlightService {
           layovers: layovers,
           cabinClass: query.cabinClass,
           price: price,
+          passengers: query.passengers,
         ),
       );
     }

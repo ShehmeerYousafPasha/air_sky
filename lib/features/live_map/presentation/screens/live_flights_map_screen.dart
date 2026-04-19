@@ -73,6 +73,7 @@ class _LiveFlightsMapScreenState extends ConsumerState<LiveFlightsMapScreen> {
               TileLayer(
                 urlTemplate:
                     'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                retinaMode: RetinaMode.isHighDensity(context),
                 subdomains: const <String>['a', 'b', 'c', 'd'],
                 userAgentPackageName: 'com.airsky.bookandfly',
               ),
@@ -180,7 +181,7 @@ class _LiveFlightsMapScreenState extends ConsumerState<LiveFlightsMapScreen> {
             ? null
             : () => ref
                   .read(liveFlightsControllerProvider.notifier)
-                  .refreshManually(),
+                  .resetRateLimitAndRefresh(),
         child: state.isRefreshing
             ? SizedBox(
                 width: 20.w,

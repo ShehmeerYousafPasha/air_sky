@@ -12,6 +12,7 @@ class Flight {
     required this.layovers,
     required this.cabinClass,
     required this.price,
+    this.passengers = 1,
   });
 
   final String id;
@@ -26,6 +27,48 @@ class Flight {
   final List<String> layovers;
   final String cabinClass;
   final double price;
+  final int passengers;
+
+  static const Map<String, String> _preferredAirlineLogos = <String, String>{
+    'Emirates': 'https://images.kiwi.com/airlines/64/EK.png',
+    'Qatar Airways': 'https://images.kiwi.com/airlines/64/QR.png',
+    'Turkish Airlines': 'https://images.kiwi.com/airlines/64/TK.png',
+    'Etihad Airways': 'https://images.kiwi.com/airlines/64/EY.png',
+    'PIA': 'https://images.kiwi.com/airlines/64/PK.png',
+    'Pakistan International Airlines':
+        'https://images.kiwi.com/airlines/64/PK.png',
+  };
+
+  static String preferredLogoForAirline(String airline) {
+    return _preferredAirlineLogos[airline.trim()] ?? '';
+  }
+
+  static String sanitizeAirlineLogo({
+    required String airline,
+    required String airlineLogo,
+  }) {
+    final String preferred = preferredLogoForAirline(airline);
+    final String trimmedLogo = airlineLogo.trim();
+
+    if (trimmedLogo.isEmpty) {
+      return preferred;
+    }
+
+    final Uri? uri = Uri.tryParse(trimmedLogo);
+    if (uri == null) {
+      return preferred.isNotEmpty ? preferred : trimmedLogo;
+    }
+
+    final String host = uri.host.toLowerCase();
+    final bool isLegacyWikimedia =
+        host == 'upload.wikimedia.org' || host.endsWith('.wikimedia.org');
+
+    if (isLegacyWikimedia && preferred.isNotEmpty) {
+      return preferred;
+    }
+
+    return trimmedLogo;
+  }
 
   String get durationLabel {
     final int hours = durationMinutes ~/ 60;
@@ -57,14 +100,21 @@ class Flight {
       'layovers': layovers,
       'cabinClass': cabinClass,
       'price': price,
+      'passengers': passengers,
     };
   }
 
   factory Flight.fromMap(Map<dynamic, dynamic> map) {
+    final String airline = map['airline'] as String? ?? '';
+    final String rawAirlineLogo = map['airlineLogo'] as String? ?? '';
+
     return Flight(
       id: map['id'] as String? ?? '',
-      airline: map['airline'] as String? ?? '',
-      airlineLogo: map['airlineLogo'] as String? ?? '',
+      airline: airline,
+      airlineLogo: sanitizeAirlineLogo(
+        airline: airline,
+        airlineLogo: rawAirlineLogo,
+      ),
       fromAirport: map['fromAirport'] as String? ?? '',
       toAirport: map['toAirport'] as String? ?? '',
       departureTime: DateTime.fromMillisecondsSinceEpoch(
@@ -80,6 +130,7 @@ class Flight {
           .toList(),
       cabinClass: map['cabinClass'] as String? ?? 'Economy',
       price: (map['price'] as num?)?.toDouble() ?? 0,
+      passengers: ((map['passengers'] as num?)?.toInt() ?? 1).clamp(1, 9),
     );
   }
 }

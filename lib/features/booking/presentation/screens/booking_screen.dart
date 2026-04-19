@@ -35,6 +35,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
   final Set<String> _autoFilledPassengerFields = <String>{};
   bool _prefillScheduled = false;
   bool _showPassengerValidationErrors = false;
+  int _focusedPassengerForSeat = 0;
 
   static const Set<String> _reservedSeats = <String>{
     '1C',
@@ -45,6 +46,48 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
     '9C',
     '10E',
   };
+
+  int get _passengerCount => widget.flight.passengers.clamp(1, 9);
+
+  String _fieldName(int passengerIndex, String key) {
+    return '${key}_$passengerIndex';
+  }
+
+  List<Passenger> _buildPassengersFromForm(Map<String, dynamic> data) {
+    return List<Passenger>.generate(_passengerCount, (int index) {
+      return Passenger(
+        firstName: (data[_fieldName(index, 'firstName')] as String? ?? ''),
+        lastName: (data[_fieldName(index, 'lastName')] as String? ?? ''),
+        email: (data[_fieldName(index, 'email')] as String? ?? ''),
+        phone: (data[_fieldName(index, 'phone')] as String? ?? ''),
+        nationality: (data[_fieldName(index, 'nationality')] as String? ?? ''),
+        passportNumber:
+            (data[_fieldName(index, 'passportNumber')] as String? ?? ''),
+      );
+    }, growable: false);
+  }
+
+  int _nextSeatFocusIndex(List<String> seats) {
+    for (int i = 0; i < _passengerCount; i++) {
+      final String seat = i < seats.length ? seats[i].trim() : '';
+      if (seat.isEmpty) {
+        return i;
+      }
+    }
+
+    if (_focusedPassengerForSeat < _passengerCount) {
+      return _focusedPassengerForSeat;
+    }
+    return _passengerCount - 1;
+  }
+
+  bool _hasCompleteSeatAssignments(List<String> seats) {
+    if (seats.length != _passengerCount) {
+      return false;
+    }
+
+    return seats.every((String value) => value.trim().isNotEmpty);
+  }
 
   @override
   void initState() {
@@ -100,15 +143,17 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
     }
 
     return <String, String>{
-      'firstName': firstName,
-      'lastName': lastName,
-      'email': email,
-      'phone': _readProfileString(profileData, <String>[
+      _fieldName(0, 'firstName'): firstName,
+      _fieldName(0, 'lastName'): lastName,
+      _fieldName(0, 'email'): email,
+      _fieldName(0, 'phone'): _readProfileString(profileData, <String>[
         'phoneNumber',
         'phone',
       ]),
-      'nationality': _readProfileString(profileData, <String>['nationality']),
-      'passportNumber': _readProfileString(profileData, <String>[
+      _fieldName(0, 'nationality'): _readProfileString(profileData, <String>[
+        'nationality',
+      ]),
+      _fieldName(0, 'passportNumber'): _readProfileString(profileData, <String>[
         'passportNumber',
       ]),
     };
@@ -229,6 +274,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
                           isActive: state.currentStep >= 0,
                           content: _PassengerStep(
                             formKey: _formKey,
+                            passengerCount: _passengerCount,
                             showValidationErrors:
                                 _showPassengerValidationErrors,
                           ),
@@ -237,9 +283,37 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
                           title: const Text('Seat Selection'),
                           isActive: state.currentStep >= 1,
                           content: _SeatStep(
-                            selectedSeat: state.selectedSeat,
+                            passengers: state.passengers,
+                            selectedSeats: state.selectedSeats,
+                            focusedPassengerIndex:
+                                _focusedPassengerForSeat < _passengerCount
+                                ? _focusedPassengerForSeat
+                                : _passengerCount - 1,
                             reservedSeats: _reservedSeats,
-                            onSelect: controller.selectSeat,
+                            onFocusPassenger: (int index) {
+                              setState(() {
+                                _focusedPassengerForSeat = index;
+                              });
+                            },
+                            onSelectSeat: (String seat) {
+                              final int passengerIndex =
+                                  _focusedPassengerForSeat < _passengerCount
+                                  ? _focusedPassengerForSeat
+                                  : _passengerCount - 1;
+                              controller.selectSeatForPassenger(
+                                passengerIndex: passengerIndex,
+                                totalPassengers: _passengerCount,
+                                seat: seat,
+                              );
+                              final List<String> nextSeats = ref
+                                  .read(bookingControllerProvider)
+                                  .selectedSeats;
+                              setState(() {
+                                _focusedPassengerForSeat = _nextSeatFocusIndex(
+                                  nextSeats,
+                                );
+                              });
+                            },
                           ),
                         ),
                         Step(
@@ -247,8 +321,8 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
                           isActive: state.currentStep >= 2,
                           content: _ReviewStep(
                             flight: widget.flight,
-                            passenger: state.passenger,
-                            selectedSeat: state.selectedSeat,
+                            passengers: state.passengers,
+                            selectedSeats: state.selectedSeats,
                           ),
                         ),
                         Step(
@@ -314,16 +388,10 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
                 if (_formKey.currentState?.saveAndValidate() ?? false) {
                   final Map<String, dynamic> data =
                       _formKey.currentState!.value;
-                  controller.setPassenger(
-                    Passenger(
-                      firstName: data['firstName'] as String,
-                      lastName: data['lastName'] as String,
-                      email: data['email'] as String,
-                      phone: data['phone'] as String,
-                      nationality: data['nationality'] as String,
-                      passportNumber: data['passportNumber'] as String,
-                    ),
+                  final List<Passenger> passengers = _buildPassengersFromForm(
+                    data,
                   );
+                  controller.setPassengers(passengers);
                   controller.nextStep();
                 } else {
                   setState(() {
@@ -334,10 +402,10 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
               }
 
               if (state.currentStep == 1) {
-                if (state.selectedSeat == null) {
+                if (!_hasCompleteSeatAssignments(state.selectedSeats)) {
                   showAppFeedback(
                     context,
-                    'AirSky: Select a seat.',
+                    'AirSky: Select seats for all passengers.',
                     type: AppFeedbackType.error,
                   );
                   return;
@@ -381,111 +449,133 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
 class _PassengerStep extends StatelessWidget {
   const _PassengerStep({
     required this.formKey,
+    required this.passengerCount,
     required this.showValidationErrors,
   });
 
   final GlobalKey<FormBuilderState> formKey;
+  final int passengerCount;
   final bool showValidationErrors;
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+
     return FormBuilder(
       key: formKey,
       autovalidateMode: showValidationErrors
           ? AutovalidateMode.onUserInteraction
           : AutovalidateMode.disabled,
       child: Column(
-        children: <Widget>[
-          FormBuilderTextField(
-            name: 'firstName',
-            decoration: const InputDecoration(
-              labelText: 'First name',
-              prefixIcon: Icon(Icons.person_outline_rounded),
-              errorMaxLines: 2,
-            ),
-            validator:
-                FormBuilderValidators.compose(<String? Function(String?)>[
-                  FormBuilderValidators.required(
-                    errorText: 'First name is required.',
-                  ),
-                  FormBuilderValidators.minLength(
-                    2,
-                    errorText: 'Enter at least 2 characters.',
-                  ),
-                ]),
-          ),
-          SizedBox(height: 10.h),
-          FormBuilderTextField(
-            name: 'lastName',
-            decoration: const InputDecoration(
-              labelText: 'Last name',
-              prefixIcon: Icon(Icons.badge_outlined),
-              errorMaxLines: 2,
-            ),
-            validator:
-                FormBuilderValidators.compose(<String? Function(String?)>[
-                  FormBuilderValidators.required(
-                    errorText: 'Last name is required.',
-                  ),
-                  FormBuilderValidators.minLength(
-                    2,
-                    errorText: 'Enter at least 2 characters.',
-                  ),
-                ]),
-          ),
-          SizedBox(height: 10.h),
-          FormBuilderTextField(
-            name: 'email',
-            keyboardType: TextInputType.emailAddress,
-            decoration: const InputDecoration(
-              labelText: 'Email',
-              prefixIcon: Icon(Icons.email_outlined),
-              errorMaxLines: 2,
-            ),
-            validator: FormBuilderValidators.compose(
-              <String? Function(String?)>[
-                FormBuilderValidators.required(errorText: 'Email is required.'),
-                FormBuilderValidators.email(
-                  errorText: 'Enter a valid email address.',
+        children: List<Widget>.generate(passengerCount, (int index) {
+          final String suffix = '_$index';
+          final List<Widget> fields = <Widget>[
+            if (index > 0) ...<Widget>[
+              SizedBox(height: 14.h),
+              Divider(color: theme.colorScheme.outlineVariant),
+              SizedBox(height: 10.h),
+            ],
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Passenger ${index + 1}',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
                 ),
-              ],
+              ),
             ),
-          ),
-          SizedBox(height: 10.h),
-          FormBuilderTextField(
-            name: 'phone',
-            keyboardType: TextInputType.phone,
-            decoration: const InputDecoration(
-              labelText: 'Phone',
-              prefixIcon: Icon(Icons.call_outlined),
-              errorMaxLines: 2,
+            SizedBox(height: 10.h),
+            FormBuilderTextField(
+              name: 'firstName$suffix',
+              decoration: const InputDecoration(
+                labelText: 'First name',
+                prefixIcon: Icon(Icons.person_outline_rounded),
+                errorMaxLines: 2,
+              ),
+              validator:
+                  FormBuilderValidators.compose(<String? Function(String?)>[
+                    FormBuilderValidators.required(
+                      errorText: 'First name is required.',
+                    ),
+                    FormBuilderValidators.minLength(
+                      2,
+                      errorText: 'Enter at least 2 characters.',
+                    ),
+                  ]),
             ),
-            validator: FormBuilderValidators.required(
-              errorText: 'Phone number is required.',
+            SizedBox(height: 10.h),
+            FormBuilderTextField(
+              name: 'lastName$suffix',
+              decoration: const InputDecoration(
+                labelText: 'Last name',
+                prefixIcon: Icon(Icons.badge_outlined),
+                errorMaxLines: 2,
+              ),
+              validator:
+                  FormBuilderValidators.compose(<String? Function(String?)>[
+                    FormBuilderValidators.required(
+                      errorText: 'Last name is required.',
+                    ),
+                    FormBuilderValidators.minLength(
+                      2,
+                      errorText: 'Enter at least 2 characters.',
+                    ),
+                  ]),
             ),
-          ),
-          SizedBox(height: 10.h),
-          FormBuilderTextField(
-            name: 'nationality',
-            decoration: const InputDecoration(
-              labelText: 'Nationality',
-              prefixIcon: Icon(Icons.flag_outlined),
-              errorMaxLines: 2,
+            SizedBox(height: 10.h),
+            FormBuilderTextField(
+              name: 'email$suffix',
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                prefixIcon: Icon(Icons.email_outlined),
+                errorMaxLines: 2,
+              ),
+              validator:
+                  FormBuilderValidators.compose(<String? Function(String?)>[
+                    FormBuilderValidators.required(
+                      errorText: 'Email is required.',
+                    ),
+                    FormBuilderValidators.email(
+                      errorText: 'Enter a valid email address.',
+                    ),
+                  ]),
             ),
-            validator: FormBuilderValidators.required(
-              errorText: 'Nationality is required.',
+            SizedBox(height: 10.h),
+            FormBuilderTextField(
+              name: 'phone$suffix',
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'Phone',
+                prefixIcon: Icon(Icons.call_outlined),
+                errorMaxLines: 2,
+              ),
+              validator: FormBuilderValidators.required(
+                errorText: 'Phone number is required.',
+              ),
             ),
-          ),
-          SizedBox(height: 10.h),
-          FormBuilderTextField(
-            name: 'passportNumber',
-            decoration: const InputDecoration(
-              labelText: 'Passport number',
-              prefixIcon: Icon(Icons.fact_check_outlined),
-              errorMaxLines: 2,
+            SizedBox(height: 10.h),
+            FormBuilderTextField(
+              name: 'nationality$suffix',
+              decoration: const InputDecoration(
+                labelText: 'Nationality',
+                prefixIcon: Icon(Icons.flag_outlined),
+                errorMaxLines: 2,
+              ),
+              validator: FormBuilderValidators.required(
+                errorText: 'Nationality is required.',
+              ),
             ),
-            validator:
-                FormBuilderValidators.compose(<String? Function(String?)>[
+            SizedBox(height: 10.h),
+            FormBuilderTextField(
+              name: 'passportNumber$suffix',
+              decoration: const InputDecoration(
+                labelText: 'Passport number',
+                prefixIcon: Icon(Icons.fact_check_outlined),
+                errorMaxLines: 2,
+              ),
+              validator: FormBuilderValidators.compose(
+                <String? Function(String?)>[
                   FormBuilderValidators.required(
                     errorText: 'Passport number is required.',
                   ),
@@ -493,9 +583,13 @@ class _PassengerStep extends StatelessWidget {
                     6,
                     errorText: 'Passport number must be at least 6 characters.',
                   ),
-                ]),
-          ),
-        ],
+                ],
+              ),
+            ),
+          ];
+
+          return Column(children: fields);
+        }),
       ),
     );
   }
@@ -503,33 +597,62 @@ class _PassengerStep extends StatelessWidget {
 
 class _SeatStep extends StatelessWidget {
   const _SeatStep({
-    required this.selectedSeat,
+    required this.passengers,
+    required this.selectedSeats,
+    required this.focusedPassengerIndex,
     required this.reservedSeats,
-    required this.onSelect,
+    required this.onFocusPassenger,
+    required this.onSelectSeat,
   });
 
   static const List<String> _leftColumns = <String>['A', 'B', 'C'];
   static const List<String> _rightColumns = <String>['D', 'E', 'F'];
 
-  final String? selectedSeat;
+  final List<Passenger> passengers;
+  final List<String> selectedSeats;
+  final int focusedPassengerIndex;
   final Set<String> reservedSeats;
-  final ValueChanged<String> onSelect;
+  final ValueChanged<int> onFocusPassenger;
+  final ValueChanged<String> onSelectSeat;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final int travelerCount = passengers.length;
+
+    if (travelerCount == 0) {
+      return Text(
+        'Complete passenger details first.',
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      );
+    }
+
+    final int effectiveFocusIndex = focusedPassengerIndex < travelerCount
+        ? focusedPassengerIndex
+        : travelerCount - 1;
+    final String focusedSeat = effectiveFocusIndex < selectedSeats.length
+        ? selectedSeats[effectiveFocusIndex]
+        : '';
 
     Widget buildSeat(String column, int row, double size) {
       final String seatCode = '$row$column';
       final bool isReserved = reservedSeats.contains(seatCode);
-      final bool isSelected = selectedSeat == seatCode;
+      final int assignedIndex = selectedSeats.indexOf(seatCode);
+      final bool isSelected = assignedIndex == effectiveFocusIndex;
+      final bool isAssignedToOther =
+          assignedIndex != -1 && assignedIndex != effectiveFocusIndex;
 
       return _SeatCell(
         label: seatCode,
         size: size,
         isReserved: isReserved,
         isSelected: isSelected,
-        onTap: isReserved ? null : () => onSelect(seatCode),
+        isAssignedToOtherPassenger: isAssignedToOther,
+        onTap: isReserved || isAssignedToOther
+            ? null
+            : () => onSelectSeat(seatCode),
       );
     }
 
@@ -539,13 +662,13 @@ class _SeatStep extends StatelessWidget {
         Row(
           children: <Widget>[
             Text(
-              'Select your seat',
+              'Assign seats',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
               ),
             ),
             const Spacer(),
-            if (selectedSeat != null)
+            if (focusedSeat.trim().isNotEmpty)
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
                 decoration: BoxDecoration(
@@ -553,7 +676,7 @@ class _SeatStep extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999.r),
                 ),
                 child: Text(
-                  'Seat $selectedSeat',
+                  'Passenger ${effectiveFocusIndex + 1}: $focusedSeat',
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.w800,
@@ -564,11 +687,78 @@ class _SeatStep extends StatelessWidget {
         ),
         SizedBox(height: 8.h),
         Wrap(
+          spacing: 8.w,
+          runSpacing: 8.h,
+          children: List<Widget>.generate(travelerCount, (int index) {
+            final String seat = index < selectedSeats.length
+                ? selectedSeats[index].trim()
+                : '';
+            final bool isFocused = index == effectiveFocusIndex;
+            final String name = passengers[index].fullName;
+
+            return InkWell(
+              borderRadius: BorderRadius.circular(10.r),
+              onTap: () => onFocusPassenger(index),
+              child: Ink(
+                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
+                decoration: BoxDecoration(
+                  color: isFocused
+                      ? theme.colorScheme.primary.withValues(alpha: 0.14)
+                      : theme.colorScheme.surfaceContainerHighest.withValues(
+                          alpha: 0.35,
+                        ),
+                  borderRadius: BorderRadius.circular(10.r),
+                  border: Border.all(
+                    color: isFocused
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.outlineVariant,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      'Passenger ${index + 1}: ${seat.isEmpty ? 'Select seat' : seat}',
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: isFocused
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.onSurface,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 2.h),
+                    SizedBox(
+                      width: 180.w,
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ),
+        SizedBox(height: 10.h),
+        Wrap(
           spacing: 10.w,
           runSpacing: 6.h,
           children: <Widget>[
             _SeatLegend(label: 'Available', color: theme.colorScheme.surface),
-            _SeatLegend(label: 'Selected', color: theme.colorScheme.primary),
+            _SeatLegend(
+              label: 'Selected passenger',
+              color: theme.colorScheme.primary,
+            ),
+            _SeatLegend(
+              label: 'Assigned to others',
+              color: theme.colorScheme.secondaryContainer,
+            ),
             _SeatLegend(
               label: 'Reserved',
               color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.52),
@@ -672,9 +862,12 @@ class _SeatStep extends StatelessWidget {
         ),
         SizedBox(height: 8.h),
         Text(
-          selectedSeat == null
-              ? 'Tap an available seat to continue.'
-              : 'Seat $selectedSeat selected.',
+          selectedSeats
+                      .where((String value) => value.trim().isNotEmpty)
+                      .length ==
+                  travelerCount
+              ? 'All seats assigned. You can continue.'
+              : 'Tap an available seat for Passenger ${effectiveFocusIndex + 1}.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
             fontWeight: FontWeight.w600,
@@ -691,6 +884,7 @@ class _SeatCell extends StatelessWidget {
     required this.size,
     required this.isReserved,
     required this.isSelected,
+    required this.isAssignedToOtherPassenger,
     this.onTap,
   });
 
@@ -698,6 +892,7 @@ class _SeatCell extends StatelessWidget {
   final double size;
   final bool isReserved;
   final bool isSelected;
+  final bool isAssignedToOtherPassenger;
   final VoidCallback? onTap;
 
   @override
@@ -706,17 +901,21 @@ class _SeatCell extends StatelessWidget {
 
     final Color fill = isReserved
         ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.48)
+        : isAssignedToOtherPassenger
+        ? theme.colorScheme.secondaryContainer
         : isSelected
         ? theme.colorScheme.primary
         : theme.colorScheme.surface;
 
     final Color border = isReserved
         ? theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.48)
+        : isAssignedToOtherPassenger
+        ? theme.colorScheme.secondary
         : isSelected
         ? theme.colorScheme.primary
         : theme.colorScheme.outlineVariant;
 
-    final Color text = isReserved || isSelected
+    final Color text = isReserved || isSelected || isAssignedToOtherPassenger
         ? Colors.white
         : theme.colorScheme.onSurface;
 
@@ -754,17 +953,21 @@ class _SeatCell extends StatelessWidget {
 class _ReviewStep extends StatelessWidget {
   const _ReviewStep({
     required this.flight,
-    required this.passenger,
-    required this.selectedSeat,
+    required this.passengers,
+    required this.selectedSeats,
   });
 
   final Flight flight;
-  final Passenger? passenger;
-  final String? selectedSeat;
+  final List<Passenger> passengers;
+  final List<String> selectedSeats;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final int passengerCount = passengers.length;
+    final double perPassenger = passengerCount <= 0
+        ? flight.price
+        : (flight.price / passengerCount);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -793,9 +996,21 @@ class _ReviewStep extends StatelessWidget {
                 'Departure: ${flight.departureTime.toTicketDate()} ${flight.departureTime.toTimeLabel()}',
               ),
               Text('Airline: ${flight.airline}'),
-              Text('Passenger: ${passenger?.fullName ?? '-'}'),
-              Text('Seat: ${selectedSeat ?? '-'}'),
+              Text('Passengers: $passengerCount'),
               SizedBox(height: 6.h),
+              for (int index = 0; index < passengerCount; index++)
+                Text(
+                  '${index + 1}. ${passengers[index].fullName} - Seat '
+                  '${index < selectedSeats.length && selectedSeats[index].trim().isNotEmpty ? selectedSeats[index] : '-'}',
+                ),
+              SizedBox(height: 6.h),
+              Text(
+                'Per passenger: ${PriceFormatter.format(perPassenger)}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               Text(
                 'Total: ${PriceFormatter.format(flight.price)}',
                 style: theme.textTheme.titleSmall?.copyWith(

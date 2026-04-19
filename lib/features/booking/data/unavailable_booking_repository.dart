@@ -8,8 +8,8 @@ class UnavailableBookingRepository implements BookingRepository {
   Future<Booking> createBooking({
     required String userId,
     required Flight flight,
-    required Passenger passenger,
-    required String seatNumber,
+    required List<Passenger> passengers,
+    required List<String> seatNumbers,
   }) {
     throw Exception(
       'Booking service is temporarily unavailable. Please try again later.',

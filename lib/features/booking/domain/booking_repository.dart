@@ -6,8 +6,8 @@ abstract class BookingRepository {
   Future<Booking> createBooking({
     required String userId,
     required Flight flight,
-    required Passenger passenger,
-    required String seatNumber,
+    required List<Passenger> passengers,
+    required List<String> seatNumbers,
   });
 
   Future<void> startPayment({

@@ -8,8 +8,8 @@ import 'package:air_sky/features/flights/domain/entities/flight.dart';
 class BookingState {
   const BookingState({
     required this.currentStep,
-    this.passenger,
-    this.selectedSeat,
+    this.passengers = const <Passenger>[],
+    this.selectedSeats = const <String>[],
     this.isSubmitting = false,
     this.bookingId,
     this.createdBooking,
@@ -17,8 +17,8 @@ class BookingState {
   });
 
   final int currentStep;
-  final Passenger? passenger;
-  final String? selectedSeat;
+  final List<Passenger> passengers;
+  final List<String> selectedSeats;
   final bool isSubmitting;
   final String? bookingId;
   final Booking? createdBooking;
@@ -28,10 +28,10 @@ class BookingState {
 
   BookingState copyWith({
     int? currentStep,
-    Passenger? passenger,
-    bool clearPassenger = false,
-    String? selectedSeat,
-    bool clearSeat = false,
+    List<Passenger>? passengers,
+    bool clearPassengers = false,
+    List<String>? selectedSeats,
+    bool clearSelectedSeats = false,
     bool? isSubmitting,
     String? bookingId,
     bool clearBookingId = false,
@@ -42,8 +42,12 @@ class BookingState {
   }) {
     return BookingState(
       currentStep: currentStep ?? this.currentStep,
-      passenger: clearPassenger ? null : (passenger ?? this.passenger),
-      selectedSeat: clearSeat ? null : (selectedSeat ?? this.selectedSeat),
+      passengers: clearPassengers
+          ? const <Passenger>[]
+          : (passengers ?? this.passengers),
+      selectedSeats: clearSelectedSeats
+          ? const <String>[]
+          : (selectedSeats ?? this.selectedSeats),
       isSubmitting: isSubmitting ?? this.isSubmitting,
       bookingId: clearBookingId ? null : (bookingId ?? this.bookingId),
       createdBooking: clearCreatedBooking
@@ -83,12 +87,38 @@ class BookingController extends StateNotifier<BookingState> {
     return message;
   }
 
-  void setPassenger(Passenger value) {
-    state = state.copyWith(passenger: value);
+  void setPassengers(List<Passenger> values) {
+    state = state.copyWith(passengers: List<Passenger>.from(values));
   }
 
-  void selectSeat(String seat) {
-    state = state.copyWith(selectedSeat: seat);
+  void selectSeatForPassenger({
+    required int passengerIndex,
+    required int totalPassengers,
+    required String seat,
+  }) {
+    if (passengerIndex < 0 || passengerIndex >= totalPassengers) {
+      return;
+    }
+
+    final List<String> seats = List<String>.generate(
+      totalPassengers,
+      (int index) =>
+          index < state.selectedSeats.length ? state.selectedSeats[index] : '',
+      growable: false,
+    );
+
+    for (int i = 0; i < seats.length; i++) {
+      if (i != passengerIndex && seats[i] == seat) {
+        return;
+      }
+    }
+
+    seats[passengerIndex] = seat;
+    state = state.copyWith(selectedSeats: seats);
+  }
+
+  void setSelectedSeats(List<String> values) {
+    state = state.copyWith(selectedSeats: List<String>.from(values));
   }
 
   void nextStep() {
@@ -107,12 +137,16 @@ class BookingController extends StateNotifier<BookingState> {
     required String userId,
     required Flight flight,
   }) async {
-    final Passenger? passenger = state.passenger;
-    final String? seat = state.selectedSeat;
+    final List<Passenger> passengers = state.passengers;
+    final List<String> seatNumbers = state.selectedSeats
+        .map((String value) => value.trim().toUpperCase())
+        .toList(growable: false);
 
-    if (passenger == null || seat == null) {
+    if (passengers.isEmpty ||
+        seatNumbers.length != passengers.length ||
+        seatNumbers.any((String value) => value.isEmpty)) {
       state = state.copyWith(
-        errorMessage: 'Passenger details and seat are required.',
+        errorMessage: 'Passenger details and seats are required.',
       );
       return;
     }
@@ -128,8 +162,8 @@ class BookingController extends StateNotifier<BookingState> {
       final Booking booking = await _repository.createBooking(
         userId: userId,
         flight: flight,
-        passenger: passenger,
-        seatNumber: seat,
+        passengers: passengers,
+        seatNumbers: seatNumbers,
       );
 
       state = state.copyWith(

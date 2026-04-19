@@ -6,6 +6,7 @@ class AppConstants {
   static const List<String> airports = <String>[
     'ISB',
     'DXB',
+    'SIN',
     'LHR',
     'IST',
     'DOH',

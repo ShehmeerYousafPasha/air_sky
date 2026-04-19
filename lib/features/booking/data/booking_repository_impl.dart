@@ -22,9 +22,30 @@ class BookingRepositoryImpl implements BookingRepository {
   Future<Booking> createBooking({
     required String userId,
     required Flight flight,
-    required Passenger passenger,
-    required String seatNumber,
+    required List<Passenger> passengers,
+    required List<String> seatNumbers,
   }) async {
+    if (passengers.isEmpty) {
+      throw Exception('At least one passenger is required.');
+    }
+
+    if (seatNumbers.length != passengers.length) {
+      throw Exception('Seat selection must match passenger count.');
+    }
+
+    final List<String> normalizedSeats = seatNumbers
+        .map((String value) => value.trim().toUpperCase())
+        .toList(growable: false);
+
+    if (normalizedSeats.any((String value) => value.isEmpty)) {
+      throw Exception('Select a seat for every passenger.');
+    }
+
+    final Set<String> uniqueSeats = normalizedSeats.toSet();
+    if (uniqueSeats.length != normalizedSeats.length) {
+      throw Exception('Each passenger must have a unique seat.');
+    }
+
     final String bookingId = IdGenerator.bookingId();
     final String psid = IdGenerator.psid();
     final DateTime now = DateTime.now();
@@ -33,8 +54,8 @@ class BookingRepositoryImpl implements BookingRepository {
       bookingId: bookingId,
       userId: userId,
       flight: flight,
-      passenger: passenger,
-      seatNumber: seatNumber,
+      passengers: passengers,
+      seatNumbers: normalizedSeats,
       createdAt: now,
       status: flight.departureTime.isAfter(now) ? 'upcoming' : 'completed',
       paymentStatus: 'unpaid',

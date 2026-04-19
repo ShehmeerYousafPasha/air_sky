@@ -100,6 +100,16 @@ The app compiles with placeholder Firebase config values.
 1. flutter pub get
 2. flutter run
 
+### Live Map OpenSky Auth (Recommended)
+
+OpenSky now uses OAuth2 client credentials for authenticated requests.
+
+Without credentials, live map runs in anonymous mode and can hit `429` sooner.
+
+1. Create an API client in your OpenSky account page.
+2. Run the app with client credentials:
+	- flutter run --dart-define=OPENSKY_CLIENT_ID=your_client_id --dart-define=OPENSKY_CLIENT_SECRET=your_client_secret
+
 ## Payment Mode (Spark Plan)
 
 The project uses a local dummy payment flow with Firestore only.

@@ -72,10 +72,14 @@ class LiveFlightsController extends StateNotifier<LiveFlightsState> {
   final OpenSkyLiveFlightsService _service;
   Timer? _pollTimer;
   bool _isFetching = false;
+  DateTime? _rateLimitedUntil;
 
   Future<void> _bootstrap() async {
     await refresh(isInitial: true);
     _pollTimer = Timer.periodic(_pollInterval, (_) {
+      if (_isRateLimitActive) {
+        return;
+      }
       unawaited(refresh(background: true));
     });
   }
@@ -87,6 +91,17 @@ class LiveFlightsController extends StateNotifier<LiveFlightsState> {
     if (_isFetching) {
       return;
     }
+
+    if (!isInitial && _isRateLimitActive) {
+      state = state.copyWith(
+        isInitialLoading: false,
+        isRefreshing: false,
+        errorMessage:
+            'OpenSky rate limit active. Retry in ${_formatDuration(_remainingRateLimitDuration)}.',
+      );
+      return;
+    }
+
     _isFetching = true;
 
     final bool hadFlights = state.flights.isNotEmpty;
@@ -101,6 +116,8 @@ class LiveFlightsController extends StateNotifier<LiveFlightsState> {
         maxFlights: _maxMarkers,
       );
 
+      _rateLimitedUntil = null;
+
       state = state.copyWith(
         flights: flights,
         isInitialLoading: false,
@@ -109,23 +126,76 @@ class LiveFlightsController extends StateNotifier<LiveFlightsState> {
         lastUpdatedAt: DateTime.now(),
       );
     } catch (error) {
-      final String message = error is LiveFlightsException
-          ? error.message
-          : 'Unable to refresh live flights right now.';
+      if (error is LiveFlightsRateLimitException) {
+        final Duration retryAfter =
+            error.retryAfter ?? const Duration(minutes: 2);
+        _rateLimitedUntil = DateTime.now().add(retryAfter);
 
-      state = state.copyWith(
-        isInitialLoading: false,
-        isRefreshing: false,
-        errorMessage: hadFlights
-            ? 'Live update failed. Showing last known flights.'
-            : message,
-      );
+        final String limitMessage =
+            'OpenSky rate limit reached. Retry in ${_formatDuration(retryAfter)}.';
+        state = state.copyWith(
+          isInitialLoading: false,
+          isRefreshing: false,
+          errorMessage: hadFlights
+              ? '$limitMessage Showing last known flights.'
+              : limitMessage,
+        );
+      } else {
+        final String message = error is LiveFlightsException
+            ? error.message
+            : 'Unable to refresh live flights right now.';
+
+        state = state.copyWith(
+          isInitialLoading: false,
+          isRefreshing: false,
+          errorMessage: hadFlights
+              ? 'Live update failed. Showing last known flights.'
+              : message,
+        );
+      }
     } finally {
       _isFetching = false;
     }
   }
 
   Future<void> refreshManually() => refresh();
+
+  Future<void> resetRateLimitAndRefresh() async {
+    _rateLimitedUntil = null;
+    await refresh();
+  }
+
+  bool get _isRateLimitActive {
+    final DateTime? until = _rateLimitedUntil;
+    if (until == null) {
+      return false;
+    }
+
+    if (DateTime.now().isAfter(until)) {
+      _rateLimitedUntil = null;
+      return false;
+    }
+    return true;
+  }
+
+  Duration get _remainingRateLimitDuration {
+    final DateTime? until = _rateLimitedUntil;
+    if (until == null) {
+      return Duration.zero;
+    }
+
+    final Duration remaining = until.difference(DateTime.now());
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+
+  String _formatDuration(Duration duration) {
+    final int totalSeconds = duration.inSeconds <= 0 ? 1 : duration.inSeconds;
+    if (totalSeconds >= 60) {
+      final int minutes = (totalSeconds / 60).ceil();
+      return '$minutes minute${minutes == 1 ? '' : 's'}';
+    }
+    return '$totalSeconds second${totalSeconds == 1 ? '' : 's'}';
+  }
 
   @override
   void dispose() {
