@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:air_sky/core/constants/app_constants.dart';
 import 'package:air_sky/features/flights/domain/entities/flight_search_query.dart';
 
 class SearchFormState {
@@ -17,15 +18,25 @@ class SearchFormState {
   final int passengers;
   final String cabinClass;
 
+  String get normalizedFromAirport => fromAirport.trim().toUpperCase();
+
+  String get normalizedToAirport => toAirport.trim().toUpperCase();
+
+  bool get hasValidFromAirport =>
+      AppConstants.airports.contains(normalizedFromAirport);
+
+  bool get hasValidToAirport =>
+      AppConstants.airports.contains(normalizedToAirport);
+
+  bool get hasDistinctRoute => normalizedFromAirport != normalizedToAirport;
+
   bool get isValid =>
-      fromAirport.isNotEmpty &&
-      toAirport.isNotEmpty &&
-      fromAirport != toAirport;
+      hasValidFromAirport && hasValidToAirport && hasDistinctRoute;
 
   FlightSearchQuery toQuery() {
     return FlightSearchQuery(
-      fromAirport: fromAirport,
-      toAirport: toAirport,
+      fromAirport: normalizedFromAirport,
+      toAirport: normalizedToAirport,
       date: date,
       passengers: passengers,
       cabinClass: cabinClass,
@@ -62,10 +73,10 @@ class SearchFormController extends StateNotifier<SearchFormState> {
       );
 
   void setFromAirport(String value) =>
-      state = state.copyWith(fromAirport: value.toUpperCase());
+      state = state.copyWith(fromAirport: value.trim().toUpperCase());
 
   void setToAirport(String value) =>
-      state = state.copyWith(toAirport: value.toUpperCase());
+      state = state.copyWith(toAirport: value.trim().toUpperCase());
 
   void swapAirports() {
     state = state.copyWith(

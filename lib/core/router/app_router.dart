@@ -14,6 +14,7 @@ import 'package:air_sky/features/flights/presentation/screens/flight_details_scr
 import 'package:air_sky/features/flights/presentation/screens/flight_results_screen.dart';
 import 'package:air_sky/features/flights/presentation/screens/flight_search_screen.dart';
 import 'package:air_sky/features/home/presentation/screens/home_screen.dart';
+import 'package:air_sky/features/live_map/presentation/screens/live_flights_map_screen.dart';
 import 'package:air_sky/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:air_sky/features/profile/presentation/screens/profile_screen.dart';
 import 'package:air_sky/features/splash/presentation/screens/splash_screen.dart';
@@ -165,6 +166,11 @@ final Provider<GoRouter> goRouterProvider = Provider<GoRouter>((Ref ref) {
         path: RoutePaths.myTrips,
         builder: (BuildContext context, GoRouterState state) =>
             const MyTripsScreen(),
+      ),
+      GoRoute(
+        path: RoutePaths.liveMap,
+        builder: (BuildContext context, GoRouterState state) =>
+            const LiveFlightsMapScreen(),
       ),
       GoRoute(
         path: RoutePaths.profile,

@@ -45,8 +45,10 @@ dependencies:
   flutter_form_builder: ^10.1.0
   form_builder_validators: ^11.2.0
   fl_chart: ^1.1.1
+  flutter_map: ^7.0.2
   qr_flutter: ^4.1.0
   intl: ^0.20.2
+  latlong2: ^0.9.1
   uuid: ^4.5.1
   google_fonts: ^6.2.1
 

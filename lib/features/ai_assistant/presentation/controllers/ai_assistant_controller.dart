@@ -28,6 +28,8 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
 
   int _messageSeed = 0;
   int _actionSeed = 0;
+  static const int _surpriseHistoryLimit = 5;
+  final List<String> _recentSurpriseDestinations = <String>[];
 
   void clearChat() {
     _resetConversation();
@@ -602,9 +604,21 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
 
     AiRouteCandidate selected = ranked.first;
     if (intent.wantsSurpriseDestination) {
-      final int pool = math.min(3, ranked.length);
+      final List<AiRouteCandidate> nonRecentCandidates = ranked
+          .where(
+            (AiRouteCandidate candidate) => !_recentSurpriseDestinations
+                .contains(candidate.query.toAirport.trim().toUpperCase()),
+          )
+          .toList(growable: false);
+
+      final List<AiRouteCandidate> eligible = nonRecentCandidates.isNotEmpty
+          ? nonRecentCandidates
+          : ranked;
+
+      final int pool = math.min(3, eligible.length);
       final int pickIndex = DateTime.now().millisecondsSinceEpoch % pool;
-      selected = ranked[pickIndex];
+      selected = eligible[pickIndex];
+      _rememberSurpriseDestination(selected.query.toAirport);
     }
 
     return _ResolvedSearch(
@@ -795,6 +809,20 @@ class AiAssistantController extends StateNotifier<AiAssistantState> {
   int _nextActionId() {
     _actionSeed += 1;
     return _actionSeed;
+  }
+
+  void _rememberSurpriseDestination(String toAirport) {
+    final String normalized = toAirport.trim().toUpperCase();
+    if (normalized.isEmpty) {
+      return;
+    }
+
+    _recentSurpriseDestinations.remove(normalized);
+    _recentSurpriseDestinations.add(normalized);
+
+    while (_recentSurpriseDestinations.length > _surpriseHistoryLimit) {
+      _recentSurpriseDestinations.removeAt(0);
+    }
   }
 
   void _resetConversation() {

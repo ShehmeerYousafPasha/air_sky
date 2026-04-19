@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-class AirportAutocompleteField extends StatelessWidget {
+class AirportAutocompleteField extends StatefulWidget {
   const AirportAutocompleteField({
     super.key,
     required this.label,
@@ -9,6 +9,7 @@ class AirportAutocompleteField extends StatelessWidget {
     required this.options,
     required this.onSelected,
     this.prefixIcon,
+    this.errorText,
   });
 
   final String label;
@@ -16,23 +17,62 @@ class AirportAutocompleteField extends StatelessWidget {
   final List<String> options;
   final ValueChanged<String> onSelected;
   final IconData? prefixIcon;
+  final String? errorText;
+
+  @override
+  State<AirportAutocompleteField> createState() =>
+      _AirportAutocompleteFieldState();
+}
+
+class _AirportAutocompleteFieldState extends State<AirportAutocompleteField> {
+  late final TextEditingController _controller;
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+    _focusNode = FocusNode();
+  }
+
+  @override
+  void didUpdateWidget(covariant AirportAutocompleteField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (widget.initialValue != oldWidget.initialValue &&
+        !_focusNode.hasFocus &&
+        _controller.text != widget.initialValue) {
+      _controller.value = TextEditingValue(
+        text: widget.initialValue,
+        selection: TextSelection.collapsed(offset: widget.initialValue.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Autocomplete<String>(
-      key: ValueKey<String>('$label-$initialValue'),
-      initialValue: TextEditingValue(text: initialValue),
+      textEditingController: _controller,
+      focusNode: _focusNode,
       optionsBuilder: (TextEditingValue value) {
         if (value.text.trim().isEmpty) {
-          return options;
+          return widget.options;
         }
 
-        return options.where(
+        return widget.options.where(
           (String airport) =>
               airport.toLowerCase().contains(value.text.trim().toLowerCase()),
         );
       },
-      onSelected: (String selected) => onSelected(selected.toUpperCase()),
+      onSelected: (String selected) =>
+          widget.onSelected(selected.toUpperCase()),
       optionsViewBuilder:
           (
             BuildContext context,
@@ -84,19 +124,23 @@ class AirportAutocompleteField extends StatelessWidget {
       fieldViewBuilder:
           (
             BuildContext context,
-            TextEditingController controller,
-            FocusNode focusNode,
+            TextEditingController textEditingController,
+            FocusNode textFocusNode,
             VoidCallback onFieldSubmitted,
           ) {
             return TextFormField(
-              controller: controller,
-              focusNode: focusNode,
+              controller: textEditingController,
+              focusNode: textFocusNode,
               textCapitalization: TextCapitalization.characters,
               decoration: InputDecoration(
-                labelText: label,
-                prefixIcon: prefixIcon != null ? Icon(prefixIcon) : null,
+                labelText: widget.label,
+                prefixIcon: widget.prefixIcon != null
+                    ? Icon(widget.prefixIcon)
+                    : null,
+                errorText: widget.errorText,
               ),
-              onChanged: (String value) => onSelected(value.toUpperCase()),
+              onChanged: (String value) =>
+                  widget.onSelected(value.toUpperCase()),
               onFieldSubmitted: (_) => onFieldSubmitted(),
             );
           },

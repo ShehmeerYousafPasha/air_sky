@@ -11,5 +11,6 @@ class RoutePaths {
   static const String flightDetails = '/flight-details';
   static const String booking = '/booking';
   static const String myTrips = '/my-trips';
+  static const String liveMap = '/live-map';
   static const String profile = '/profile';
 }

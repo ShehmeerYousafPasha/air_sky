@@ -140,6 +140,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           ),
           IconButton(
             iconSize: 24.sp,
+            tooltip: 'Live Flights Map',
+            onPressed: () => context.push(RoutePaths.liveMap),
+            icon: const Icon(Icons.radar_rounded),
+          ),
+          IconButton(
+            iconSize: 24.sp,
             tooltip: 'My Trips',
             onPressed: () => context.push(RoutePaths.myTrips),
             icon: const Icon(Icons.airplane_ticket_rounded),

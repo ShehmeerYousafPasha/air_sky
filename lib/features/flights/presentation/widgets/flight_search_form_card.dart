@@ -26,6 +26,17 @@ class FlightSearchFormCard extends ConsumerWidget {
     );
     final bool isGuest = ref.watch(guestModeProvider);
     final ThemeData theme = Theme.of(context);
+    final String? fromError =
+        form.fromAirport.isEmpty || form.hasValidFromAirport
+        ? null
+        : 'Use a valid airport code (e.g., ISB, DXB, LHR)';
+    final String? toError = form.toAirport.isEmpty
+        ? null
+        : (!form.hasValidToAirport
+              ? 'Use a valid airport code (e.g., IST, DOH, KHI)'
+              : (!form.hasDistinctRoute
+                    ? 'Destination must be different from origin'
+                    : null));
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -77,6 +88,7 @@ class FlightSearchFormCard extends ConsumerWidget {
               options: AppConstants.airports,
               onSelected: controller.setFromAirport,
               prefixIcon: Icons.flight_takeoff_rounded,
+              errorText: fromError,
             ),
             SizedBox(height: 8.h),
             Align(
@@ -114,6 +126,7 @@ class FlightSearchFormCard extends ConsumerWidget {
               options: AppConstants.airports,
               onSelected: controller.setToAirport,
               prefixIcon: Icons.flight_land_rounded,
+              errorText: toError,
             ),
             SizedBox(height: 12.h),
             InkWell(
@@ -280,40 +293,33 @@ class FlightSearchFormCard extends ConsumerWidget {
             AppPrimaryButton(
               label: 'Search Flights',
               icon: Icons.search_rounded,
-              onPressed: () async {
-                if (!form.isValid) {
-                  showAppFeedback(
-                    context,
-                    'AirSky: Check route fields.',
-                    type: AppFeedbackType.error,
-                  );
-                  return;
-                }
-
-                final FlightSearchQuery query = isGuest
-                    ? FlightSearchQuery(
-                        fromAirport: form.fromAirport,
-                        toAirport: form.toAirport,
-                        date: form.date,
-                        passengers: 1,
-                        cabinClass: 'Economy',
-                      )
-                    : form.toQuery();
-                await ref
-                    .read(flightSearchControllerProvider.notifier)
-                    .searchFlights(query);
-                await ref.read(recentSearchesProvider.notifier).refresh();
-                if (isGuest && context.mounted) {
-                  showAppFeedback(
-                    context,
-                    'AirSky: Guest search is limited. Sign in for full options.',
-                    type: AppFeedbackType.general,
-                  );
-                }
-                if (context.mounted) {
-                  context.push(RoutePaths.results);
-                }
-              },
+              onPressed: !form.isValid
+                  ? null
+                  : () async {
+                      final FlightSearchQuery query = isGuest
+                          ? FlightSearchQuery(
+                              fromAirport: form.normalizedFromAirport,
+                              toAirport: form.normalizedToAirport,
+                              date: form.date,
+                              passengers: 1,
+                              cabinClass: 'Economy',
+                            )
+                          : form.toQuery();
+                      await ref
+                          .read(flightSearchControllerProvider.notifier)
+                          .searchFlights(query);
+                      await ref.read(recentSearchesProvider.notifier).refresh();
+                      if (isGuest && context.mounted) {
+                        showAppFeedback(
+                          context,
+                          'AirSky: Guest search is limited. Sign in for full options.',
+                          type: AppFeedbackType.general,
+                        );
+                      }
+                      if (context.mounted) {
+                        context.push(RoutePaths.results);
+                      }
+                    },
             ),
           ],
         ),
