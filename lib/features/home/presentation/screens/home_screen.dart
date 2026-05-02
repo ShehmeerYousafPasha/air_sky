@@ -51,6 +51,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   Widget build(BuildContext context) {
     final WidgetRef ref = this.ref;
     final List<FlightSearchQuery> recent = ref.watch(recentSearchesProvider);
+    final AppCurrency selectedCurrency = ref.watch(currencyControllerProvider);
     final bool isGuest = ref.watch(guestModeProvider);
     final user = ref.watch(authStateChangesProvider).valueOrNull;
     final String? firestoreName = ref
@@ -256,6 +257,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         _popularDestinations[index];
                     return _DestinationCard(
                           destination: destination,
+                          currency: selectedCurrency,
                           onTap: () {
                             ref
                                 .read(searchFormControllerProvider.notifier)
@@ -287,6 +289,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       final Map<String, Object> deal = _dealCards[index];
                       return _DealCard(
                         deal: deal,
+                        currency: selectedCurrency,
                         onTap: () {
                           ref
                               .read(searchFormControllerProvider.notifier)
@@ -676,9 +679,14 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _DestinationCard extends StatefulWidget {
-  const _DestinationCard({required this.destination, required this.onTap});
+  const _DestinationCard({
+    required this.destination,
+    required this.currency,
+    required this.onTap,
+  });
 
   final Map<String, Object> destination;
+  final AppCurrency currency;
   final VoidCallback onTap;
 
   @override
@@ -755,7 +763,10 @@ class _DestinationCardState extends State<_DestinationCard> {
                     ),
                     SizedBox(height: 6.h),
                     Text(
-                      PriceFormatter.format(priceUsd),
+                      PriceFormatter.format(
+                        priceUsd,
+                        currency: widget.currency,
+                      ),
                       style: theme.textTheme.labelLarge?.copyWith(
                         color: theme.colorScheme.primary,
                         fontWeight: FontWeight.w800,
@@ -773,9 +784,14 @@ class _DestinationCardState extends State<_DestinationCard> {
 }
 
 class _DealCard extends StatelessWidget {
-  const _DealCard({required this.deal, required this.onTap});
+  const _DealCard({
+    required this.deal,
+    required this.currency,
+    required this.onTap,
+  });
 
   final Map<String, Object> deal;
+  final AppCurrency currency;
   final VoidCallback onTap;
 
   @override
@@ -844,7 +860,7 @@ class _DealCard extends StatelessWidget {
                     ),
                     SizedBox(height: 2.h),
                     Text(
-                      'From ${PriceFormatter.format(priceUsd)}',
+                      'From ${PriceFormatter.format(priceUsd, currency: currency)}',
                       style: theme.textTheme.titleSmall?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,

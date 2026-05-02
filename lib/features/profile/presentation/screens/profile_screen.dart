@@ -216,53 +216,6 @@ class ProfileScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _sendPasswordResetFromProfile(
-    BuildContext context,
-    WidgetRef ref,
-    String? email,
-  ) async {
-    final String targetEmail = email?.trim() ?? '';
-    if (targetEmail.isEmpty) {
-      _showMessage(
-        context,
-        'AirSky: No email on file.',
-        type: AppFeedbackType.error,
-      );
-      return;
-    }
-
-    await ref
-        .read(authControllerProvider.notifier)
-        .sendPasswordResetEmail(email: targetEmail);
-
-    if (!context.mounted) {
-      return;
-    }
-
-    final AsyncValue<void> result = ref.read(authControllerProvider);
-    if (result.hasError) {
-      _showMessage(
-        context,
-        formatFirebaseAuthError(
-          result.error,
-          fallbackMessage: 'AirSky: Reset link not sent.',
-        ),
-        type: AppFeedbackType.error,
-      );
-      return;
-    }
-
-    if (!context.mounted) {
-      return;
-    }
-
-    _showMessage(
-      context,
-      'AirSky: Reset link sent.',
-      type: AppFeedbackType.success,
-    );
-  }
-
   Future<void> _handleSessionExit(BuildContext context, WidgetRef ref) async {
     await ref.read(authControllerProvider.notifier).signOut();
     if (!context.mounted) {
@@ -317,6 +270,98 @@ class ProfileScreen extends ConsumerWidget {
     );
 
     return confirmed ?? false;
+  }
+
+  void _showTermsAndConditions(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Terms & Conditions'),
+          content: SingleChildScrollView(
+            child: Text(
+              'AirSky: Book & Fly - Terms of Service\n\n'
+              '1. User Responsibilities\n'
+              'Users are responsible for maintaining confidentiality of their account credentials.\n\n'
+              '2. Booking Terms\n'
+              'All flight bookings are subject to airline terms and conditions.\n\n'
+              '3. Cancellation Policy\n'
+              'Cancellations must be made within the specified timeframe.\n\n'
+              '4. Liability\n'
+              'AirSky is not liable for airline service interruptions or delays.\n\n'
+              '5. Data Privacy\n'
+              'Your personal data is protected according to our privacy policy.\n\n'
+              'For full terms, visit our website.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Accept'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showPrivacyPolicy(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Privacy Policy'),
+          content: SingleChildScrollView(
+            child: Text(
+              'AirSky: Book & Fly - Privacy Policy\n\n'
+              '1. Data Collection\n'
+              'We collect user information necessary for flight bookings and service delivery.\n\n'
+              '2. Data Usage\n'
+              'Your data is used for booking confirmation, support, and service improvement.\n\n'
+              '3. Data Protection\n'
+              'We implement industry-standard security measures to protect your data.\n\n'
+              '4. Third Parties\n'
+              'We may share data with airline partners for booking purposes only.\n\n'
+              '5. Your Rights\n'
+              'You have the right to access, modify, or delete your personal data.\n\n'
+              '6. Cookies\n'
+              'We use cookies to enhance your experience and analyze app usage.\n\n'
+              'For questions, contact our privacy team.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Acknowledge'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showAboutApp(BuildContext context) {
+    showAboutDialog(
+      context: context,
+      applicationName: 'AirSky: Book & Fly',
+      applicationVersion: '1.0.0',
+      applicationLegalese: '© 2026 AirSky. All rights reserved.',
+      children: <Widget>[
+        const SizedBox(height: 12),
+        const Text(
+          'Your trusted flight booking companion. Search, compare, and book flights with ease across South and Central Asia.',
+        ),
+        const SizedBox(height: 12),
+        const Text('Features:', style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text('• Smart flight search and filtering'),
+        const Text('• Real-time price tracking'),
+        const Text('• Multi-passenger booking'),
+        const Text('• AI-powered travel assistant'),
+        const Text('• Live flight radar'),
+      ],
+    );
   }
 
   @override
@@ -487,11 +532,24 @@ class ProfileScreen extends ConsumerWidget {
                   ),
                   Divider(height: 1.h),
                   _ProfileMenuTile(
-                    icon: Icons.lock_reset_rounded,
-                    title: 'Change password',
-                    subtitle: 'Send a secure reset link to your email',
-                    onTap: () =>
-                        _sendPasswordResetFromProfile(context, ref, user.email),
+                    icon: Icons.description_outlined,
+                    title: 'Terms & Conditions',
+                    subtitle: 'Read our terms of service',
+                    onTap: () => _showTermsAndConditions(context),
+                  ),
+                  Divider(height: 1.h),
+                  _ProfileMenuTile(
+                    icon: Icons.privacy_tip_outlined,
+                    title: 'Privacy Policy',
+                    subtitle: 'View our privacy policy',
+                    onTap: () => _showPrivacyPolicy(context),
+                  ),
+                  Divider(height: 1.h),
+                  _ProfileMenuTile(
+                    icon: Icons.info_outline_rounded,
+                    title: 'About AirSky',
+                    subtitle: 'Version 1.0.0 • Learn about the app',
+                    onTap: () => _showAboutApp(context),
                   ),
                 ],
               ),

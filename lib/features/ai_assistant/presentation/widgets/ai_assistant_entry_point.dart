@@ -378,9 +378,10 @@ class _AiAssistantSheetState extends ConsumerState<_AiAssistantSheet> {
           }
 
           if (mounted) {
-            context.go(RoutePaths.results);
+            _closeSheetIfOpen();
+            context.push(RoutePaths.results);
             handled = true;
-            shouldCloseSheet = true;
+            shouldCloseSheet = false;
           }
         }
         break;
@@ -397,9 +398,10 @@ class _AiAssistantSheetState extends ConsumerState<_AiAssistantSheet> {
               handled = true;
             }
           } else if (mounted) {
+            _closeSheetIfOpen();
             context.push(RoutePaths.flightDetails, extra: action.flight);
             handled = true;
-            shouldCloseSheet = true;
+            shouldCloseSheet = false;
           }
         }
         break;
@@ -416,6 +418,7 @@ class _AiAssistantSheetState extends ConsumerState<_AiAssistantSheet> {
               handled = true;
             }
           } else if (mounted) {
+            _closeSheetIfOpen();
             context.push(RoutePaths.booking, extra: action.flight);
             showAppFeedback(
               context,
@@ -423,7 +426,7 @@ class _AiAssistantSheetState extends ConsumerState<_AiAssistantSheet> {
               type: AppFeedbackType.general,
             );
             handled = true;
-            shouldCloseSheet = true;
+            shouldCloseSheet = false;
           }
         }
         break;

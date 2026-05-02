@@ -106,7 +106,10 @@ class _AirportAutocompleteFieldState extends State<AirportAutocompleteField> {
                     itemBuilder: (BuildContext context, int index) {
                       final String option = options.elementAt(index);
                       return InkWell(
-                        onTap: () => onSelected(option),
+                        onTap: () {
+                          onSelected(option);
+                          _focusNode.unfocus();
+                        },
                         child: Padding(
                           padding: EdgeInsets.symmetric(
                             horizontal: 12.w,
@@ -141,7 +144,15 @@ class _AirportAutocompleteFieldState extends State<AirportAutocompleteField> {
               ),
               onChanged: (String value) =>
                   widget.onSelected(value.toUpperCase()),
-              onFieldSubmitted: (_) => onFieldSubmitted(),
+              onTapOutside: (_) => textFocusNode.unfocus(),
+              onFieldSubmitted: (_) {
+                textFocusNode.unfocus();
+                onFieldSubmitted();
+              },
+              onEditingComplete: () {
+                textFocusNode.unfocus();
+                onFieldSubmitted();
+              },
             );
           },
     );
