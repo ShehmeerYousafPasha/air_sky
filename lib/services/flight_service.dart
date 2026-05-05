@@ -1,7 +1,7 @@
 import 'dart:math';
 
-import 'package:air_sky/features/flights/domain/entities/flight.dart';
-import 'package:air_sky/features/flights/domain/entities/flight_search_query.dart';
+import 'package:air_sky/features/flights/models/flight.dart';
+import 'package:air_sky/features/flights/models/flight_search_query.dart';
 
 class FlightService {
   const FlightService();
@@ -229,3 +229,6 @@ class FlightService {
     return (max(75, computed) * passengers).toDouble();
   }
 }
+
+
+

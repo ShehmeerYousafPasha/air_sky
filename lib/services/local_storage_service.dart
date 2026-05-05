@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import 'package:air_sky/core/constants/hive_constants.dart';
-import 'package:air_sky/core/utils/price_formatter.dart';
-import 'package:air_sky/features/flights/domain/entities/flight.dart';
-import 'package:air_sky/features/flights/domain/entities/flight_search_query.dart';
+import 'package:air_sky/config/hive_constants.dart';
+import 'package:air_sky/utils/price_formatter.dart';
+import 'package:air_sky/features/flights/models/flight.dart';
+import 'package:air_sky/features/flights/models/flight_search_query.dart';
 
 class LocalStorageService {
   const LocalStorageService();
@@ -141,3 +141,6 @@ class LocalStorageService {
     await _lastResultsBox.put(HiveConstants.lastSearchResultsKey, payload);
   }
 }
+
+
+

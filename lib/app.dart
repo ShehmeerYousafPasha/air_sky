@@ -3,10 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-import 'package:air_sky/core/constants/app_constants.dart';
-import 'package:air_sky/core/providers/app_providers.dart';
-import 'package:air_sky/core/router/app_router.dart';
-import 'package:air_sky/core/theme/app_theme.dart';
+import 'package:air_sky/config/app_constants.dart';
+import 'package:air_sky/config/app_providers.dart';
+import 'package:air_sky/config/app_router.dart';
+import 'package:air_sky/config/app_theme.dart';
 
 class AirSkyApp extends ConsumerWidget {
   const AirSkyApp({super.key});
@@ -59,3 +59,6 @@ class AirSkyApp extends ConsumerWidget {
     );
   }
 }
+
+
+
