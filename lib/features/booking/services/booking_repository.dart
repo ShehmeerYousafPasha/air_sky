@@ -26,6 +26,13 @@ abstract class BookingRepository {
     required String bookingId,
   });
 
+  Future<void> editBooking({
+    required String userId,
+    required String bookingId,
+    required List<Passenger> passengers,
+    required List<String> seatNumbers,
+  });
+
   Stream<List<Booking>> watchUserBookings(String userId);
 }
 

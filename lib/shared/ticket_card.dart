@@ -17,12 +17,14 @@ class TicketCard extends StatefulWidget {
     required this.booking,
     this.onPayNow,
     this.onConfirmPayment,
+    this.onEditBooking,
     this.onCancelBooking,
   });
 
   final Booking booking;
   final Future<void> Function()? onPayNow;
   final Future<void> Function()? onConfirmPayment;
+  final Future<void> Function()? onEditBooking;
   final Future<void> Function()? onCancelBooking;
 
   @override
@@ -554,6 +556,20 @@ class _TicketCardState extends State<TicketCard> {
                                 ],
                               ],
                             ),
+                            if (!isProcessing &&
+                                widget.onEditBooking != null) ...<Widget>[
+                              SizedBox(height: 8.h),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: () async {
+                                    await widget.onEditBooking!.call();
+                                  },
+                                  icon: const Icon(Icons.edit_outlined),
+                                  label: const Text('Edit booking'),
+                                ),
+                              ),
+                            ],
                             if (widget.onCancelBooking != null) ...<Widget>[
                               SizedBox(height: 8.h),
                               SizedBox(

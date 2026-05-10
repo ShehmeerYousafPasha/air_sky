@@ -81,6 +81,35 @@ service cloud.firestore {
         && resource.data.status == 'upcoming';
     }
 
+    function canEditBooking(userId) {
+      return isOwner(userId)
+        && resource.data.userId == userId
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.flight == resource.data.flight
+        && request.resource.data.passengers is list
+        && request.resource.data.passengers.size() > 0
+        && request.resource.data.passengers.size() == resource.data.passengers.size()
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.psid == resource.data.psid
+        && request.resource.data.amount == resource.data.amount
+        && request.resource.data.currency == resource.data.currency
+        && request.resource.data.paymentDueAt == resource.data.paymentDueAt
+        && request.resource.data.paidAt == resource.data.paidAt
+        && request.resource.data.providerTransactionId == resource.data.providerTransactionId
+        && request.resource.data.paymentStatus == resource.data.paymentStatus
+        && request.resource.data.paymentMethod == resource.data.paymentMethod
+        && request.resource.data.cancelledAt == resource.data.cancelledAt
+        && request.resource.data.updatedAt is int
+        && request.resource.data.seatNumbers is list
+        && request.resource.data.seatNumbers.size() == request.resource.data.passengers.size()
+        && request.resource.data.seatNumbers.size() == resource.data.seatNumbers.size()
+        && request.resource.data.seatNumber == request.resource.data.seatNumbers[0]
+        && request.resource.data.passenger == request.resource.data.passengers[0]
+        && resource.data.paymentStatus == 'unpaid'
+        && resource.data.status == 'upcoming';
+    }
+
     match /users/{userId} {
       allow read, create, update: if isOwner(userId);
       allow delete: if false;
@@ -103,7 +132,8 @@ service cloud.firestore {
         // payment_processing -> paid transitions.
         allow update: if canMovePaymentToProcessing(userId)
           || canMovePaymentToPaid(userId)
-          || canCancelBooking(userId);
+          || canCancelBooking(userId)
+          || canEditBooking(userId);
         allow delete: if false;
       }
     }

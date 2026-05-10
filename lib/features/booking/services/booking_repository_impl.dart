@@ -296,6 +296,120 @@ class BookingRepositoryImpl implements BookingRepository {
     );
   }
 
+  @override
+  Future<void> editBooking({
+    required String userId,
+    required String bookingId,
+    required List<Passenger> passengers,
+    required List<String> seatNumbers,
+  }) async {
+    if (passengers.isEmpty) {
+      throw Exception('At least one passenger is required.');
+    }
+
+    if (seatNumbers.isEmpty) {
+      throw Exception('Seat selection must match passenger count.');
+    }
+
+    if (seatNumbers.length != passengers.length) {
+      throw Exception('Seat selection must match passenger count.');
+    }
+
+    if (
+        passengers.any(
+          (Passenger value) =>
+              value.firstName.trim().isEmpty ||
+              value.lastName.trim().isEmpty ||
+              value.email.trim().isEmpty ||
+              value.phone.trim().isEmpty ||
+              value.nationality.trim().isEmpty ||
+              value.passportNumber.trim().isEmpty,
+        )) {
+      throw Exception('Passenger details are required.');
+    }
+
+    final List<String> normalizedSeats = seatNumbers
+        .map((String value) => value.trim().toUpperCase())
+        .toList(growable: false);
+
+    if (normalizedSeats.any((String value) => value.isEmpty)) {
+      throw Exception('Select a seat for every passenger.');
+    }
+
+    final Set<String> uniqueSeats = normalizedSeats.toSet();
+    if (uniqueSeats.length != normalizedSeats.length) {
+      throw Exception('Each passenger must have a unique seat.');
+    }
+
+    final DocumentReference<Map<String, dynamic>> bookingRef = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('bookings')
+        .doc(bookingId);
+
+    final DocumentSnapshot<Map<String, dynamic>> current = await bookingRef
+        .get();
+    final Map<String, dynamic>? data = current.data();
+    if (data == null) {
+      throw Exception('Booking not found.');
+    }
+
+    final List<String> existingSeats =
+        ((data['seatNumbers'] as List<dynamic>?) ?? const <dynamic>[])
+            .map((dynamic entry) => entry.toString().trim().toUpperCase())
+            .where((String value) => value.isNotEmpty)
+            .toList(growable: false);
+
+    final List<dynamic> existingPassengers =
+      (data['passengers'] as List<dynamic>?) ?? const <dynamic>[];
+
+    if (existingPassengers.length != passengers.length) {
+      throw Exception('Passenger count cannot be changed.');
+    }
+
+    if (existingSeats.length != normalizedSeats.length) {
+      throw Exception('Seat selection must match passenger count.');
+    }
+
+    final String paymentStatus = (data['paymentStatus'] as String? ?? '').trim();
+    if (paymentStatus != 'unpaid') {
+      throw Exception('Only unpaid bookings can be edited.');
+    }
+
+    final String status = (data['status'] as String? ?? '').trim();
+    if (status != 'upcoming') {
+      throw Exception('Only upcoming bookings can be edited.');
+    }
+
+    final int nowMs = DateTime.now().millisecondsSinceEpoch;
+    await bookingRef.set(<String, dynamic>{
+      'passengers': passengers
+          .map((Passenger value) => value.toMap())
+          .toList(growable: false),
+      'passenger': passengers.first.toMap(),
+      'seatNumbers': normalizedSeats,
+      'seatNumber': normalizedSeats.first,
+      'updatedAt': nowMs,
+    }, SetOptions(merge: true));
+
+    await _writeUserNotification(
+      userId: userId,
+      title: 'Booking updated',
+      body:
+          'Your booking #$bookingId has been updated. Seats: ${normalizedSeats.join(', ')}.',
+      type: 'booking_updated',
+      bookingId: bookingId,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(nowMs),
+    );
+
+    await LocalNotificationService.instance.showBookingEvent(
+      bookingId: bookingId,
+      title: 'Booking updated',
+      body: 'Your booking has been updated successfully.',
+      type: 'booking_updated',
+    );
+  }
+
   Future<void> _startLocalDummyPayment({
     required DocumentReference<Map<String, dynamic>> bookingRef,
     required int startedAtMs,

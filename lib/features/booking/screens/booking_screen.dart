@@ -49,6 +49,24 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
 
   int get _passengerCount => widget.flight.passengers.clamp(1, 9);
 
+  Map<String, dynamic> _buildInitialPassengerValues(
+    List<Passenger> passengers,
+  ) {
+    final Map<String, dynamic> values = <String, dynamic>{};
+    for (int i = 0; i < _passengerCount; i++) {
+      final Passenger p = i < passengers.length
+          ? passengers[i]
+          : Passenger.empty();
+      values[_fieldName(i, 'firstName')] = p.firstName;
+      values[_fieldName(i, 'lastName')] = p.lastName;
+      values[_fieldName(i, 'email')] = p.email;
+      values[_fieldName(i, 'phone')] = p.phone;
+      values[_fieldName(i, 'nationality')] = p.nationality;
+      values[_fieldName(i, 'passportNumber')] = p.passportNumber;
+    }
+    return values;
+  }
+
   String _fieldName(int passengerIndex, String key) {
     return '${key}_$passengerIndex';
   }
@@ -277,6 +295,9 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
                             passengerCount: _passengerCount,
                             showValidationErrors:
                                 _showPassengerValidationErrors,
+                            initialValues: _buildInitialPassengerValues(
+                              state.passengers,
+                            ),
                           ),
                         ),
                         Step(
@@ -461,16 +482,19 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
   }
 }
 
+
 class _PassengerStep extends StatelessWidget {
   const _PassengerStep({
     required this.formKey,
     required this.passengerCount,
     required this.showValidationErrors,
+    this.initialValues,
   });
 
   final GlobalKey<FormBuilderState> formKey;
   final int passengerCount;
   final bool showValidationErrors;
+  final Map<String, dynamic>? initialValues;
 
   @override
   Widget build(BuildContext context) {
@@ -478,6 +502,7 @@ class _PassengerStep extends StatelessWidget {
 
     return FormBuilder(
       key: formKey,
+      initialValue: initialValues ?? <String, dynamic>{},
       autovalidateMode: showValidationErrors
           ? AutovalidateMode.onUserInteraction
           : AutovalidateMode.disabled,
@@ -565,9 +590,20 @@ class _PassengerStep extends StatelessWidget {
                 prefixIcon: Icon(Icons.call_outlined),
                 errorMaxLines: 2,
               ),
-              validator: FormBuilderValidators.required(
-                errorText: 'Phone number is required.',
-              ),
+              inputFormatters: <TextInputFormatter>[
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(11),
+              ],
+              validator: (String? value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Phone number is required.';
+                }
+                final String digits = value.replaceAll(RegExp(r'\D'), '');
+                if (digits.length < 11) {
+                  return 'Enter a valid phone number of 11 digits.';
+                }
+                return null;
+              },
             ),
             SizedBox(height: 10.h),
             FormBuilderTextField(
@@ -577,9 +613,16 @@ class _PassengerStep extends StatelessWidget {
                 prefixIcon: Icon(Icons.flag_outlined),
                 errorMaxLines: 2,
               ),
-              validator: FormBuilderValidators.required(
-                errorText: 'Nationality is required.',
-              ),
+              validator:
+                  FormBuilderValidators.compose(<String? Function(String?)>[
+                    FormBuilderValidators.required(
+                      errorText: 'Nationality is required.',
+                    ),
+                    FormBuilderValidators.minLength(
+                      2,
+                      errorText: 'Enter a valid nationality.',
+                    ),
+                  ]),
             ),
             SizedBox(height: 10.h),
             FormBuilderTextField(
@@ -598,6 +641,14 @@ class _PassengerStep extends StatelessWidget {
                     6,
                     errorText: 'Passport number must be at least 6 characters.',
                   ),
+                  (String? value) {
+                    if (value == null) return null;
+                    final String trimmed = value.trim();
+                    if (!RegExp(r'^[A-Za-z0-9\- ]+$').hasMatch(trimmed)) {
+                      return 'Passport number contains invalid characters.';
+                    }
+                    return null;
+                  },
                 ],
               ),
             ),
