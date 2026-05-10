@@ -322,6 +322,8 @@ class _TripsList extends ConsumerWidget {
                       return;
                     }
 
+                    await Future<void>.delayed(const Duration(milliseconds: 800));
+
                     await ref
                         .read(bookingRepositoryProvider)
                         .confirmPayment(

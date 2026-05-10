@@ -1,52 +1,128 @@
 # AirSky: Book & Fly
 
-AirSky is a Flutter travel app for browsing flights, booking trips, tracking tickets, and checking live aircraft on a map. This branch uses Firebase Auth and Firestore for account and booking persistence, Hive for local state and cached searches, a local deterministic flight generator for search results, and OpenSky for the live radar map.
+AirSky is a Flutter travel app for browsing flights, booking trips, managing tickets, and viewing live flight data. Built with Firebase Auth and Firestore for persistence, Riverpod for state management, and the OpenSky API for live flights.
 
 ## What Ships Here
 
-- Email/password signup and login with email verification
-- Guest mode for limited browsing without an account
-- Onboarding flow on first launch
-- Flight search with route, date, passenger count, and cabin class
-- Sort by cheapest or fastest, plus stop and price filters
-- Cached last-search results and recent searches through Hive
-- Flight detail and booking flow with passenger forms, seat selection, and review
-- Firestore-backed trips list with QR ticket display
-- Local payment verification loop using Firestore rules only
-- Profile editing, theme toggle, and currency selection
-- Live flights map backed by OpenSky
-- In-app AI assistant entry point for search help and travel guidance
+- **Authentication**: Email/password signup and login with email verification; guest mode for limited browsing
+- **Onboarding**: Welcome flow on first app launch
+- **Flight Search**: Search by route, date, passenger count, and cabin class with Schiphol API integration
+- **Search Filtering & Sorting**: Sort by price or duration; filter by stops and price range
+- **Local Caching**: Recent searches and last-search results cached via Hive for offline access
+- **Flight Details & Booking**: Full booking flow with passenger information forms, seat selection, and booking review
+- **Trip Management**: View booked flights in a trips list with QR ticket generation and display
+- **Payment Verification**: Local payment flow guarded by Firestore security rules (no Cloud Functions required on Spark plan)
+- **User Profile**: Edit profile details, toggle theme, and select preferred currency
+- **Live Flight Map**: Real-time flight tracking with live position data
+- **Notifications**: Local push notifications for booking and travel updates
+- **AI Assistant**: In-app entry point for search suggestions and travel guidance
 
 ## Tech Stack
 
-- flutter_riverpod
-- go_router
-- firebase_auth
-- cloud_firestore
-- hive + hive_flutter
-- flutter_screenutil
-- flutter_animate
-- flutter_form_builder
-- flutter_map
-- fl_chart
-- shimmer
-- cached_network_image
-- qr_flutter
-- google_fonts
-- intl
+**State & Routing:**
+- `flutter_riverpod` – State management with async support
+- `go_router` – Navigation and deep linking
+
+**Backend & Auth:**
+- `firebase_auth` – User authentication with email verification
+- `cloud_firestore` – Cloud database for users, bookings, and trips
+- `firebase_core` – Firebase initialization
+
+**Local Storage & Data:**
+- `hive` + `hive_flutter` – Local caching (last search, recent searches, offline state)
+- `intl` – Internationalization and number/date formatting
+
+**UI & Animation:**
+- `flutter_screenutil` – Responsive layout scaling
+- `flutter_animate` – Stagger and entrance animations
+- `shimmer` – Loading state shimmer effects
+- `flutter_form_builder` + `form_builder_validators` – Form handling and validation
+- `google_fonts` – Custom typography
+
+**Maps & Charts:**
+- `flutter_map` – Interactive map view for live flights
+- `latlong2` – Latitude/longitude coordinate handling
+- `fl_chart` – Chart rendering (fare trends, analytics)
+
+**Media & Utility:**
+- `cached_network_image` – Image caching and display
+- `qr_flutter` – QR code generation for tickets
+- `uuid` – Unique ID generation
+- `google_sign_in` – Google OAuth signin
+- `flutter_local_notifications` – Push notifications
+
+## Project Structure
+
+```
+lib/
+├── main.dart                    # App entry point
+├── app.dart                     # Root widget and router setup
+├── firebase_options.dart        # Firebase configuration
+├── config/                      # App configuration and providers
+├── services/                    # Core services (Firebase, Hive, notifications, etc.)
+├── shared/                      # Shared widgets, theme, and utilities
+├── utils/                       # Helper functions and constants
+└── features/                    # Feature modules
+    ├── auth/                    # Signup, login, email verification
+    ├── onboarding/              # Welcome screens
+    ├── splash/                  # Splash screen and initialization
+    ├── flights/                 # Flight search, listing, details
+    ├── booking/                 # Booking flow, passenger forms, seat selection
+    ├── home/                    # Home dashboard
+    ├── profile/                 # User profile and settings
+    ├── live_map/                # Live flight tracking map
+    ├── notifications/           # Notification handling and display
+    └── ai_assistant/            # AI assistant feature
+```
 
 ## App Flow
 
-1. Splash screen checks onboarding, auth state, and guest mode.
-2. If onboarding is incomplete, the app sends the user through the onboarding pages.
-3. Verified users and guests land on Home.
-4. Login requires a verified email address.
-5. Guest users can search and browse, but booking and sensitive details are restricted.
-6. Search results are generated locally, cached, and reused if the app cannot load fresh results.
-7. Booking writes to Firestore under `users/{uid}/bookings/{bookingId}`.
-8. Trips can be marked paid through the local dummy payment verification flow.
+1. **Splash Screen**: Initializes Firebase, checks onboarding and auth state
+2. **Onboarding**: First-time users see welcome screens before accessing the app
+3. **Authentication**: Verified email login or guest mode signup/access
+4. **Home Dashboard**: Authenticated users and guests land on the home screen
+5. **Flight Search**: Enter route (Schiphol-connected), date, passengers, cabin class; results pulled from Schiphol API
+6. **Search Caching**: Results and searches cached via Hive; previous results shown offline if fresh API data unavailable
+7. **Booking Flow**: Select flight → enter passenger details → select seats → review and confirm → writes to Firestore
+8. **Payment**: Local payment verification using Firestore rules (no backend functions needed)
+9. **Trips & Tickets**: View booked flights with QR codes; mark as paid to complete booking
+10. **Guest Upgrade**: Guest users can sign up at any point; login/signup routes always accessible
 
-## Project Structure
+## Platform Support
+
+- **iOS** (13.0+)
+- **Android** (minSdk 23)
+- **Web** (Chrome, Firefox, Safari)
+- **Windows** (10+)
+- **macOS** (11+)
+- **Linux**
+
+## Database Structure
+
+**Firestore:**
+```
+users/
+  {uid}/
+    profile/          # User name, email, preferences
+    bookings/         # Booking records with payment status
+
+bookingRequests/      # Pending multi-passenger booking validations (optional)
+```
+
+**Hive Boxes:**
+- `lastSearch` – Most recent search query and results
+- `recentSearches` – List of past searches
+- `userPreferences` – Theme, currency, language
+
+## Known Notes
+
+- Guest users can browse and search but cannot book; login/signup routes always accessible for upgrade
+- Booking records include payment metadata (`paymentStatus`, `psid`, paid/due timestamps)
+- Firestore security rules enforce payment transitions (unpaid → processing → paid)
+- Flight map uses Schiphol data when credentials provided; falls back to OpenSky otherwise
+- QR codes generated on-demand and embedded in trip details
+- Email verification required before booking; resend emails available in auth flow
+- Booking passengers include form validation, seat selection, and insurance options
 
 This app follows a feature-first layout with app-level configuration isolated in `config/`, reusable services in `services/`, and cross-feature widgets in `shared/`.
 

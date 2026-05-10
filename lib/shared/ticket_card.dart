@@ -33,6 +33,8 @@ class TicketCard extends StatefulWidget {
 
 class _TicketCardState extends State<TicketCard> {
   bool _expanded = false;
+  bool _isVerifyingPayment = false;
+  bool _isPayingNow = false;
   Timer? _processingTicker;
 
   static const Duration _processingWindow = Duration(seconds: 8);
@@ -522,23 +524,56 @@ class _TicketCardState extends State<TicketCard> {
                                   SizedBox(width: 8.w),
                                   Expanded(
                                     child: FilledButton.icon(
-                                      onPressed: canConfirmProcessing
+                                      onPressed:
+                                          canConfirmProcessing &&
+                                              !_isVerifyingPayment
                                           ? () async {
-                                              await widget.onConfirmPayment!
-                                                  .call();
+                                              setState(
+                                                () =>
+                                                    _isVerifyingPayment = true,
+                                              );
+                                              try {
+                                                await widget.onConfirmPayment!
+                                                    .call();
+                                              } finally {
+                                                if (mounted) {
+                                                  setState(
+                                                    () => _isVerifyingPayment =
+                                                        false,
+                                                  );
+                                                }
+                                              }
                                             }
                                           : null,
-                                      icon: Icon(
-                                        canConfirmProcessing
-                                            ? Icons.verified_rounded
-                                            : Icons.timer_rounded,
-                                      ),
-                                      label: Text(
-                                        canConfirmProcessing
-                                            ? 'Verify payment'
-                                            : _formatCountdown(
-                                                processingRemaining,
+                                      icon: _isVerifyingPayment
+                                          ? SizedBox(
+                                              width: 18.w,
+                                              height: 18.w,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<
+                                                      Color
+                                                    >(
+                                                      Theme.of(
+                                                        context,
+                                                      ).colorScheme.onPrimary,
+                                                    ),
                                               ),
+                                            )
+                                          : Icon(
+                                              canConfirmProcessing
+                                                  ? Icons.verified_rounded
+                                                  : Icons.timer_rounded,
+                                            ),
+                                      label: Text(
+                                        _isVerifyingPayment
+                                            ? 'Verifying...'
+                                            : (canConfirmProcessing
+                                                  ? 'Verify payment'
+                                                  : _formatCountdown(
+                                                      processingRemaining,
+                                                    )),
                                       ),
                                     ),
                                   ),
@@ -546,11 +581,44 @@ class _TicketCardState extends State<TicketCard> {
                                   SizedBox(width: 8.w),
                                   Expanded(
                                     child: FilledButton.icon(
-                                      onPressed: () async {
-                                        await widget.onPayNow!.call();
-                                      },
-                                      icon: const Icon(Icons.payments_rounded),
-                                      label: const Text('Pay now'),
+                                      onPressed: _isPayingNow
+                                          ? null
+                                          : () async {
+                                              setState(
+                                                () => _isPayingNow = true,
+                                              );
+                                              try {
+                                                await widget.onPayNow!.call();
+                                              } finally {
+                                                if (mounted) {
+                                                  setState(
+                                                    () => _isPayingNow = false,
+                                                  );
+                                                }
+                                              }
+                                            },
+                                      icon: _isPayingNow
+                                          ? SizedBox(
+                                              width: 18.w,
+                                              height: 18.w,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<
+                                                      Color
+                                                    >(
+                                                      Theme.of(
+                                                        context,
+                                                      ).colorScheme.onPrimary,
+                                                    ),
+                                              ),
+                                            )
+                                          : const Icon(Icons.payments_rounded),
+                                      label: Text(
+                                        _isPayingNow
+                                            ? 'Processing...'
+                                            : 'Pay now',
+                                      ),
                                     ),
                                   ),
                                 ],
