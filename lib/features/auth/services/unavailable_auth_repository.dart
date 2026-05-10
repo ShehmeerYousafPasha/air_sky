@@ -41,6 +41,14 @@ class UnavailableAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<UserCredential> signInWithGoogle() {
+    throw FirebaseAuthException(
+      code: 'firebase-not-configured',
+      message: _serviceUnavailableMessage,
+    );
+  }
+
+  @override
   Future<void> signOut() async {
     throw FirebaseAuthException(
       code: 'firebase-not-configured',

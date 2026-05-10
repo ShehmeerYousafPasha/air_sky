@@ -1,13 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import 'package:air_sky/features/auth/services/auth_repository.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
-  AuthRepositoryImpl(this._firebaseAuth, this._firestore);
+  AuthRepositoryImpl(this._firebaseAuth, this._firestore)
+      : _googleSignIn = GoogleSignIn();
 
   final FirebaseAuth _firebaseAuth;
   final FirebaseFirestore _firestore;
+  final GoogleSignIn _googleSignIn;
 
   @override
   Stream<User?> authStateChanges() => _firebaseAuth.authStateChanges();
@@ -69,7 +72,49 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<void> signOut() => _firebaseAuth.signOut();
+  Future<UserCredential> signInWithGoogle() async {
+    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) {
+      throw FirebaseAuthException(
+        code: 'google-sign-in-cancelled',
+        message: 'Google Sign-In was cancelled by user.',
+      );
+    }
+
+    final GoogleSignInAuthentication googleAuth =
+        await googleUser.authentication;
+
+    final AuthCredential credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    final UserCredential userCredential =
+        await _firebaseAuth.signInWithCredential(credential);
+
+    final User? user = userCredential.user;
+    if (user != null) {
+      await _firestore.collection('users').doc(user.uid).set(
+        <String, dynamic>{
+          'uid': user.uid,
+          'name': user.displayName ?? 'Google User',
+          'email': user.email ?? '',
+          'photoUrl': user.photoURL,
+          'createdAt': FieldValue.serverTimestamp(),
+          'isGuest': false,
+        },
+        SetOptions(merge: true),
+      );
+    }
+
+    return userCredential;
+  }
+
+  @override
+  Future<void> signOut() async {
+    await _googleSignIn.signOut();
+    await _firebaseAuth.signOut();
+  }
 }
 
 

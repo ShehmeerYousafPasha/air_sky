@@ -247,19 +247,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               },
             ),
             SizedBox(height: 10.h),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  await ref.read(guestModeProvider.notifier).enableGuestMode();
-                  if (!context.mounted) return;
-                  context.go(RoutePaths.home);
-                },
-                icon: const Icon(Icons.person_outline_rounded),
-                label: const Text('Continue as Guest'),
-              ),
-            ),
-            SizedBox(height: 10.h),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
@@ -273,11 +260,163 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               ],
             ),
+            SizedBox(height: 16.h),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: Divider(
+                    color: theme.colorScheme.outlineVariant,
+                    thickness: 1,
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12.w),
+                  child: Text(
+                    'Or continue with',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Divider(
+                    color: theme.colorScheme.outlineVariant,
+                    thickness: 1,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 14.h),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final authController = ref.read(
+                        authControllerProvider.notifier,
+                      );
+                      final guestModeController = ref.read(
+                        guestModeProvider.notifier,
+                      );
+                      final GoRouter router = ref.read(goRouterProvider);
+                      final ProviderContainer container =
+                          ProviderScope.containerOf(context, listen: false);
+
+                      await authController.signInWithGoogle();
+
+                      final AsyncValue<void> result = container.read(
+                        authControllerProvider,
+                      );
+                      if (result.hasError) {
+                        _showFeedbackWithFallback(
+                          router,
+                          formatFirebaseAuthError(
+                            result.error,
+                            fallbackMessage: 'AirSky: Google sign-in failed.',
+                          ),
+                          type: AppFeedbackType.error,
+                        );
+                        return;
+                      }
+
+                      await guestModeController.disableGuestMode();
+
+                      _showFeedbackWithFallback(
+                        router,
+                        'AirSky: Welcome!',
+                        type: AppFeedbackType.success,
+                      );
+
+                      authController.clearState();
+                    },
+                    icon: const _GoogleBrandIcon(),
+                    label: const Text('Google'),
+                  ),
+                ),
+                SizedBox(width: 10.w),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      await ref
+                          .read(guestModeProvider.notifier)
+                          .enableGuestMode();
+                      if (!context.mounted) return;
+                      context.go(RoutePaths.home);
+                    },
+                    icon: const Icon(Icons.person_outline_rounded),
+                    label: const Text('Guest'),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+class _GoogleBrandIcon extends StatelessWidget {
+  const _GoogleBrandIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size(18, 18),
+      painter: _GoogleBrandIconPainter(),
+    );
+  }
+}
+
+class _GoogleBrandIconPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double strokeWidth = size.width * 0.18;
+    final Offset center = Offset(size.width / 2, size.height / 2);
+    final double radius = (size.width - strokeWidth) / 2;
+
+    final Paint bluePaint = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    final Paint redPaint = Paint()
+      ..color = const Color(0xFFEA4335)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    final Paint yellowPaint = Paint()
+      ..color = const Color(0xFFFBBC05)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    final Paint greenPaint = Paint()
+      ..color = const Color(0xFF34A853)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final Rect arcRect = Rect.fromCircle(center: center, radius: radius);
+    canvas.drawArc(arcRect, -0.35, 1.15, false, bluePaint);
+    canvas.drawArc(arcRect, 0.8, 1.2, false, redPaint);
+    canvas.drawArc(arcRect, 2.0, 1.1, false, yellowPaint);
+    canvas.drawArc(arcRect, 3.15, 1.15, false, greenPaint);
+
+    final Paint barPaint = Paint()
+      ..color = const Color(0xFF4285F4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(size.width * 0.56, center.dy),
+      Offset(size.width * 0.88, center.dy),
+      barPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 
