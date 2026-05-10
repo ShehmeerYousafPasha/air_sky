@@ -18,7 +18,10 @@ class Booking {
     this.paymentDueAt,
     this.paidAt,
     this.providerTransactionId,
-  }) : assert(passengers.isNotEmpty, 'At least one passenger is required.'),
+    DateTime? updatedAt,
+    this.cancelledAt,
+  }) : updatedAt = updatedAt ?? createdAt,
+       assert(passengers.isNotEmpty, 'At least one passenger is required.'),
        assert(
          seatNumbers.length == passengers.length,
          'Seat count must match passenger count.',
@@ -39,6 +42,8 @@ class Booking {
   final DateTime? paymentDueAt;
   final DateTime? paidAt;
   final String? providerTransactionId;
+  final DateTime updatedAt;
+  final DateTime? cancelledAt;
 
   Passenger get passenger =>
       passengers.isNotEmpty ? passengers.first : const Passenger.empty();
@@ -56,6 +61,10 @@ class Booking {
       seatNumbers.where((String value) => value.trim().isNotEmpty).join(', ');
 
   bool get isPaid => paymentStatus == 'paid';
+
+  bool get isCancelled => status == 'cancelled';
+
+  bool get isUpcoming => status == 'upcoming';
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
@@ -77,6 +86,8 @@ class Booking {
       'paymentDueAt': paymentDueAt?.millisecondsSinceEpoch,
       'paidAt': paidAt?.millisecondsSinceEpoch,
       'providerTransactionId': providerTransactionId,
+      'updatedAt': updatedAt.millisecondsSinceEpoch,
+      'cancelledAt': cancelledAt?.millisecondsSinceEpoch,
     };
   }
 
@@ -155,6 +166,12 @@ class Booking {
           ? null
           : DateTime.fromMillisecondsSinceEpoch(map['paidAt'] as int),
       providerTransactionId: map['providerTransactionId'] as String?,
+      updatedAt: (map['updatedAt'] as int?) == null
+          ? DateTime.fromMillisecondsSinceEpoch((map['createdAt'] as int?) ?? 0)
+          : DateTime.fromMillisecondsSinceEpoch(map['updatedAt'] as int),
+      cancelledAt: (map['cancelledAt'] as int?) == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(map['cancelledAt'] as int),
     );
   }
 }

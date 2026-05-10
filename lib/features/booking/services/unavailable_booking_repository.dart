@@ -38,6 +38,16 @@ class UnavailableBookingRepository implements BookingRepository {
   }
 
   @override
+  Future<void> cancelBooking({
+    required String userId,
+    required String bookingId,
+  }) {
+    throw Exception(
+      'Booking cancellation is temporarily unavailable. Please try again later.',
+    );
+  }
+
+  @override
   Stream<List<Booking>> watchUserBookings(String userId) {
     return const Stream<List<Booking>>.empty();
   }

@@ -21,6 +21,11 @@ abstract class BookingRepository {
     required String transactionReference,
   });
 
+  Future<void> cancelBooking({
+    required String userId,
+    required String bookingId,
+  });
+
   Stream<List<Booking>> watchUserBookings(String userId);
 }
 

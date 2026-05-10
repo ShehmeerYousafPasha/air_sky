@@ -73,6 +73,13 @@ class MyTripsScreen extends ConsumerWidget {
         appBar: AppBar(
           leading: _backLeading(context),
           title: const Text('My Trips'),
+          actions: <Widget>[
+            IconButton(
+              tooltip: 'Notifications',
+              onPressed: () => context.push(RoutePaths.notifications),
+              icon: const Icon(Icons.notifications_none_rounded),
+            ),
+          ],
           bottom: const TabBar(
             tabs: <Widget>[
               Tab(text: 'Upcoming'),
@@ -146,6 +153,32 @@ class _TripsList extends ConsumerWidget {
     return _normalizeReference(value);
   }
 
+  Future<bool> _askCancelConfirmation(BuildContext context) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Cancel booking?'),
+          content: const Text(
+            'This will move the booking to cancelled status and keep it in your trip history.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Keep booking'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Cancel booking'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed ?? false;
+  }
+
   String _startPaymentErrorMessage(Object error) {
     final String raw = error.toString();
     if (raw.contains('Verification already in progress')) {
@@ -186,6 +219,17 @@ class _TripsList extends ConsumerWidget {
     return 'AirSky: Could not verify payment.';
   }
 
+  String _cancelBookingErrorMessage(Object error) {
+    final String raw = error.toString();
+    if (raw.contains('Only upcoming bookings can be cancelled')) {
+      return 'AirSky: Only upcoming bookings can be cancelled.';
+    }
+    if (raw.contains('Booking not found')) {
+      return 'AirSky: Booking was not found.';
+    }
+    return 'AirSky: Could not cancel booking.';
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (bookings.isEmpty) {
@@ -202,7 +246,7 @@ class _TripsList extends ConsumerWidget {
         final Booking booking = bookings[index];
         return TicketCard(
           booking: booking,
-          onPayNow: booking.paymentStatus != 'unpaid'
+          onPayNow: booking.isCancelled || booking.paymentStatus != 'unpaid'
               ? null
               : () async {
                   try {
@@ -230,7 +274,8 @@ class _TripsList extends ConsumerWidget {
                     }
                   }
                 },
-          onConfirmPayment: booking.paymentStatus != 'payment_processing'
+            onConfirmPayment:
+              booking.isCancelled || booking.paymentStatus != 'payment_processing'
               ? null
               : () async {
                   try {
@@ -261,6 +306,39 @@ class _TripsList extends ConsumerWidget {
                       showAppFeedback(
                         context,
                         _confirmPaymentErrorMessage(error),
+                        type: AppFeedbackType.error,
+                      );
+                    }
+                  }
+                },
+          onCancelBooking: booking.isCancelled || !booking.isUpcoming
+              ? null
+              : () async {
+                  final bool confirmed = await _askCancelConfirmation(context);
+                  if (!confirmed) {
+                    return;
+                  }
+
+                  try {
+                    await ref
+                        .read(bookingRepositoryProvider)
+                        .cancelBooking(
+                          userId: booking.userId,
+                          bookingId: booking.bookingId,
+                        );
+
+                    if (context.mounted) {
+                      showAppFeedback(
+                        context,
+                        'AirSky: Booking cancelled.',
+                        type: AppFeedbackType.success,
+                      );
+                    }
+                  } catch (error) {
+                    if (context.mounted) {
+                      showAppFeedback(
+                        context,
+                        _cancelBookingErrorMessage(error),
                         type: AppFeedbackType.error,
                       );
                     }

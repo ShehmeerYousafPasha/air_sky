@@ -17,11 +17,13 @@ class TicketCard extends StatefulWidget {
     required this.booking,
     this.onPayNow,
     this.onConfirmPayment,
+    this.onCancelBooking,
   });
 
   final Booking booking;
   final Future<void> Function()? onPayNow;
   final Future<void> Function()? onConfirmPayment;
+  final Future<void> Function()? onCancelBooking;
 
   @override
   State<TicketCard> createState() => _TicketCardState();
@@ -128,6 +130,7 @@ class _TicketCardState extends State<TicketCard> {
         ? '1 pax • Seat ${booking.seatNumber.trim().isEmpty ? '-' : booking.seatNumber}'
         : '${booking.passengerCount} pax • Seats ${booking.seatSummary.trim().isEmpty ? '-' : booking.seatSummary}';
     final bool upcoming = booking.status == 'upcoming';
+    final bool cancelled = booking.isCancelled;
     final bool isPaid = booking.isPaid;
     final bool isProcessing = booking.paymentStatus == 'payment_processing';
     final Duration processingRemaining = isProcessing
@@ -143,12 +146,19 @@ class _TicketCardState extends State<TicketCard> {
       210.0,
     );
 
-    final Color badgeColor = upcoming
+    final String tripStatusLabel = cancelled
+        ? 'CANCELLED'
+        : (upcoming ? 'UPCOMING' : 'COMPLETED');
+    final Color badgeColor = cancelled
+        ? theme.colorScheme.error
+        : (upcoming
         ? theme.colorScheme.primary
-        : theme.colorScheme.onSurfaceVariant;
-    final Color badgeBackground = upcoming
+              : theme.colorScheme.onSurfaceVariant);
+    final Color badgeBackground = cancelled
+        ? theme.colorScheme.error.withValues(alpha: 0.14)
+        : (upcoming
         ? theme.colorScheme.primary.withValues(alpha: 0.14)
-        : theme.colorScheme.surfaceContainerHighest;
+              : theme.colorScheme.surfaceContainerHighest);
 
     final Color paymentBadgeColor = isPaid
         ? AppTheme.success
@@ -202,7 +212,7 @@ class _TicketCardState extends State<TicketCard> {
                           borderRadius: BorderRadius.circular(999.r),
                         ),
                         child: Text(
-                          upcoming ? 'UPCOMING' : 'COMPLETED',
+                          tripStatusLabel,
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: badgeColor,
                             fontWeight: FontWeight.w800,
@@ -293,7 +303,9 @@ class _TicketCardState extends State<TicketCard> {
               ),
               SizedBox(height: 8.h),
               Text(
-                isPaid
+                cancelled
+                    ? 'This booking was cancelled and is kept for your trip history.'
+                    : isPaid
                     ? 'Tap expand to view ticket and QR.'
                     : (isProcessing
                           ? 'Verification in progress. Confirm after timer ends.'
@@ -303,7 +315,7 @@ class _TicketCardState extends State<TicketCard> {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              if (isProcessing) ...<Widget>[
+              if (isProcessing && !cancelled) ...<Widget>[
                 SizedBox(height: 6.h),
                 Container(
                   padding: EdgeInsets.symmetric(
@@ -362,7 +374,22 @@ class _TicketCardState extends State<TicketCard> {
                     ? CrossFadeState.showSecond
                     : CrossFadeState.showFirst,
                 firstChild: const SizedBox.shrink(),
-                secondChild: isPaid
+                secondChild: cancelled
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Divider(height: 1.h),
+                          SizedBox(height: 10.h),
+                          Text(
+                            'Cancelled bookings cannot be paid or verified.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      )
+                    : isPaid
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
@@ -463,68 +490,87 @@ class _TicketCardState extends State<TicketCard> {
                             ),
                           ],
                           SizedBox(height: 10.h),
-                          Row(
-                            children: <Widget>[
-                              Expanded(
+                          if (!cancelled) ...<Widget>[
+                            Row(
+                              children: <Widget>[
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: booking.psid.trim().isEmpty
+                                        ? null
+                                        : () async {
+                                            await Clipboard.setData(
+                                              ClipboardData(text: booking.psid),
+                                            );
+                                            if (!context.mounted) {
+                                              return;
+                                            }
+                                            showAppFeedback(
+                                              context,
+                                              'AirSky: PSID copied.',
+                                              type: AppFeedbackType.success,
+                                            );
+                                          },
+                                    icon: const Icon(Icons.copy_rounded),
+                                    label: const Text('Copy PSID'),
+                                  ),
+                                ),
+                                if (isProcessing &&
+                                    widget.onConfirmPayment !=
+                                        null) ...<Widget>[
+                                  SizedBox(width: 8.w),
+                                  Expanded(
+                                    child: FilledButton.icon(
+                                      onPressed: canConfirmProcessing
+                                          ? () async {
+                                              await widget.onConfirmPayment!
+                                                  .call();
+                                            }
+                                          : null,
+                                      icon: Icon(
+                                        canConfirmProcessing
+                                            ? Icons.verified_rounded
+                                            : Icons.timer_rounded,
+                                      ),
+                                      label: Text(
+                                        canConfirmProcessing
+                                            ? 'Verify payment'
+                                            : _formatCountdown(
+                                                processingRemaining,
+                                              ),
+                                      ),
+                                    ),
+                                  ),
+                                ] else if (widget.onPayNow != null) ...<Widget>[
+                                  SizedBox(width: 8.w),
+                                  Expanded(
+                                    child: FilledButton.icon(
+                                      onPressed: () async {
+                                        await widget.onPayNow!.call();
+                                      },
+                                      icon: const Icon(Icons.payments_rounded),
+                                      label: const Text('Pay now'),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            if (widget.onCancelBooking != null) ...<Widget>[
+                              SizedBox(height: 8.h),
+                              SizedBox(
+                                width: double.infinity,
                                 child: OutlinedButton.icon(
-                                  onPressed: booking.psid.trim().isEmpty
-                                      ? null
-                                      : () async {
-                                          await Clipboard.setData(
-                                            ClipboardData(text: booking.psid),
-                                          );
-                                          if (!context.mounted) {
-                                            return;
-                                          }
-                                          showAppFeedback(
-                                            context,
-                                            'AirSky: PSID copied.',
-                                            type: AppFeedbackType.success,
-                                          );
-                                        },
-                                  icon: const Icon(Icons.copy_rounded),
-                                  label: const Text('Copy PSID'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: theme.colorScheme.error,
+                                  ),
+                                  onPressed: () async {
+                                    await widget.onCancelBooking!.call();
+                                  },
+                                  icon: const Icon(Icons.cancel_outlined),
+                                  label: const Text('Cancel booking'),
                                 ),
                               ),
-                              if (isProcessing &&
-                                  widget.onConfirmPayment != null) ...<Widget>[
-                                SizedBox(width: 8.w),
-                                Expanded(
-                                  child: FilledButton.icon(
-                                    onPressed: canConfirmProcessing
-                                        ? () async {
-                                            await widget.onConfirmPayment!
-                                                .call();
-                                          }
-                                        : null,
-                                    icon: Icon(
-                                      canConfirmProcessing
-                                          ? Icons.verified_rounded
-                                          : Icons.timer_rounded,
-                                    ),
-                                    label: Text(
-                                      canConfirmProcessing
-                                          ? 'Verify payment'
-                                          : _formatCountdown(
-                                              processingRemaining,
-                                            ),
-                                    ),
-                                  ),
-                                ),
-                              ] else if (widget.onPayNow != null) ...<Widget>[
-                                SizedBox(width: 8.w),
-                                Expanded(
-                                  child: FilledButton.icon(
-                                    onPressed: () async {
-                                      await widget.onPayNow!.call();
-                                    },
-                                    icon: const Icon(Icons.open_in_new_rounded),
-                                    label: const Text('Pay now'),
-                                  ),
-                                ),
-                              ],
                             ],
-                          ),
+                          ],
                         ],
                       ),
               ),

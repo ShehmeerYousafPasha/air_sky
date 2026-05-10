@@ -7,6 +7,7 @@ import 'package:air_sky/features/booking/services/booking_repository.dart';
 import 'package:air_sky/features/booking/models/booking.dart';
 import 'package:air_sky/features/booking/models/passenger.dart';
 import 'package:air_sky/features/flights/models/flight.dart';
+import 'package:air_sky/services/local_notification_service.dart';
 
 class BookingRepositoryImpl implements BookingRepository {
   BookingRepositoryImpl(this._firestore);
@@ -66,6 +67,7 @@ class BookingRepositoryImpl implements BookingRepository {
       paymentDueAt: now.add(const Duration(hours: 24)),
       paidAt: null,
       providerTransactionId: null,
+      updatedAt: now,
     );
 
     await _firestore
@@ -74,6 +76,24 @@ class BookingRepositoryImpl implements BookingRepository {
         .collection('bookings')
         .doc(bookingId)
         .set(booking.toMap());
+
+    await _writeUserNotification(
+      userId: userId,
+      title: 'Booking confirmed',
+      body:
+          '${flight.fromAirport} to ${flight.toAirport} is booked for ${normalizedSeats.join(', ')}.',
+      type: 'booking_created',
+      bookingId: bookingId,
+      createdAt: now,
+    );
+
+    await LocalNotificationService.instance.showBookingEvent(
+      bookingId: bookingId,
+      title: 'Booking confirmed',
+      body:
+          'Your booking from ${flight.fromAirport} to ${flight.toAirport} is confirmed.',
+      type: 'booking_created',
+    );
 
     return booking;
   }
@@ -127,6 +147,23 @@ class BookingRepositoryImpl implements BookingRepository {
     }
 
     await _startLocalDummyPayment(bookingRef: bookingRef, startedAtMs: nowMs);
+
+    await _writeUserNotification(
+      userId: userId,
+      title: 'Payment verification started',
+      body:
+          'Verification is now running for booking #$bookingId. Complete it with your transaction reference.',
+      type: 'payment_processing',
+      bookingId: bookingId,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(nowMs),
+    );
+
+    await LocalNotificationService.instance.showBookingEvent(
+      bookingId: bookingId,
+      title: 'Payment started',
+      body: 'Payment verification has started for booking #$bookingId.',
+      type: 'payment_processing',
+    );
   }
 
   @override
@@ -187,7 +224,76 @@ class BookingRepositoryImpl implements BookingRepository {
       'paymentMethod': 'dummy_local',
       'providerTransactionId': cleanedReference,
       'paidAt': nowMs,
+      'updatedAt': nowMs,
     }, SetOptions(merge: true));
+
+    await _writeUserNotification(
+      userId: userId,
+      title: 'Payment confirmed',
+      body:
+          'Booking #$bookingId has been marked as paid and your ticket is ready.',
+      type: 'payment_confirmed',
+      bookingId: bookingId,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(nowMs),
+    );
+
+    await LocalNotificationService.instance.showBookingEvent(
+      bookingId: bookingId,
+      title: 'Payment confirmed',
+      body: 'Your payment is confirmed for booking #$bookingId.',
+      type: 'payment_confirmed',
+    );
+  }
+
+  @override
+  Future<void> cancelBooking({
+    required String userId,
+    required String bookingId,
+  }) async {
+    final DocumentReference<Map<String, dynamic>> bookingRef = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('bookings')
+        .doc(bookingId);
+
+    final DocumentSnapshot<Map<String, dynamic>> current = await bookingRef
+        .get();
+    final Map<String, dynamic>? data = current.data();
+    if (data == null) {
+      throw Exception('Booking not found.');
+    }
+
+    final String currentStatus = (data['status'] as String? ?? '').trim();
+    if (currentStatus == 'cancelled') {
+      return;
+    }
+    if (currentStatus != 'upcoming') {
+      throw Exception('Only upcoming bookings can be cancelled.');
+    }
+
+    final DateTime now = DateTime.now();
+
+    await bookingRef.set(<String, dynamic>{
+      'status': 'cancelled',
+      'cancelledAt': now.millisecondsSinceEpoch,
+      'updatedAt': now.millisecondsSinceEpoch,
+    }, SetOptions(merge: true));
+
+    await _writeUserNotification(
+      userId: userId,
+      title: 'Booking cancelled',
+      body: 'Booking #$bookingId has been cancelled successfully.',
+      type: 'booking_cancelled',
+      bookingId: bookingId,
+      createdAt: now,
+    );
+
+    await LocalNotificationService.instance.showBookingEvent(
+      bookingId: bookingId,
+      title: 'Booking cancelled',
+      body: 'Booking #$bookingId was cancelled.',
+      type: 'booking_cancelled',
+    );
   }
 
   Future<void> _startLocalDummyPayment({
@@ -195,12 +301,14 @@ class BookingRepositoryImpl implements BookingRepository {
     required int startedAtMs,
   }) async {
     final String transactionId = _createDummyTransactionId(startedAtMs);
+    final int nowMs = DateTime.now().millisecondsSinceEpoch;
 
     await bookingRef.set(<String, dynamic>{
       'paymentStatus': 'payment_processing',
       'paymentMethod': 'dummy_local',
       'providerTransactionId': transactionId,
       'paidAt': null,
+      'updatedAt': nowMs,
     }, SetOptions(merge: true));
   }
 
@@ -219,6 +327,31 @@ class BookingRepositoryImpl implements BookingRepository {
       return null;
     }
     return int.tryParse(parts[1]);
+  }
+
+  Future<void> _writeUserNotification({
+    required String userId,
+    required String title,
+    required String body,
+    required String type,
+    required String bookingId,
+    required DateTime createdAt,
+  }) async {
+    final DocumentReference<Map<String, dynamic>> notificationRef = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('notifications')
+        .doc();
+
+    await notificationRef.set(<String, dynamic>{
+      'notificationId': notificationRef.id,
+      'title': title,
+      'body': body,
+      'type': type,
+      'bookingId': bookingId,
+      'createdAt': createdAt.millisecondsSinceEpoch,
+      'readAt': null,
+    });
   }
 
   @override

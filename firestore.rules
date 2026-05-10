@@ -14,6 +14,8 @@ service cloud.firestore {
         && resource.data.userId == userId
         && request.resource.data.userId == resource.data.userId
         && request.resource.data.flight == resource.data.flight
+        && request.resource.data.passengers == resource.data.passengers
+        && request.resource.data.seatNumbers == resource.data.seatNumbers
         && request.resource.data.passenger == resource.data.passenger
         && request.resource.data.seatNumber == resource.data.seatNumber
         && request.resource.data.createdAt == resource.data.createdAt
@@ -22,6 +24,7 @@ service cloud.firestore {
         && request.resource.data.amount == resource.data.amount
         && request.resource.data.currency == resource.data.currency
         && request.resource.data.paymentDueAt == resource.data.paymentDueAt
+        && request.resource.data.updatedAt is int
         && request.resource.data.paymentStatus == 'payment_processing'
         && request.resource.data.paymentMethod == 'dummy_local'
         && request.resource.data.paidAt == null
@@ -34,6 +37,8 @@ service cloud.firestore {
         && resource.data.userId == userId
         && request.resource.data.userId == resource.data.userId
         && request.resource.data.flight == resource.data.flight
+        && request.resource.data.passengers == resource.data.passengers
+        && request.resource.data.seatNumbers == resource.data.seatNumbers
         && request.resource.data.passenger == resource.data.passenger
         && request.resource.data.seatNumber == resource.data.seatNumber
         && request.resource.data.createdAt == resource.data.createdAt
@@ -42,6 +47,7 @@ service cloud.firestore {
         && request.resource.data.amount == resource.data.amount
         && request.resource.data.currency == resource.data.currency
         && request.resource.data.paymentDueAt == resource.data.paymentDueAt
+        && request.resource.data.updatedAt is int
         && request.resource.data.paymentStatus == 'paid'
         && request.resource.data.paymentMethod == 'dummy_local'
         && request.resource.data.paidAt is int
@@ -51,9 +57,37 @@ service cloud.firestore {
         && resource.data.paymentMethod == 'dummy_local';
     }
 
+    function canCancelBooking(userId) {
+      return isOwner(userId)
+        && resource.data.userId == userId
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.flight == resource.data.flight
+        && request.resource.data.passengers == resource.data.passengers
+        && request.resource.data.seatNumbers == resource.data.seatNumbers
+        && request.resource.data.passenger == resource.data.passenger
+        && request.resource.data.seatNumber == resource.data.seatNumber
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.psid == resource.data.psid
+        && request.resource.data.amount == resource.data.amount
+        && request.resource.data.currency == resource.data.currency
+        && request.resource.data.paymentDueAt == resource.data.paymentDueAt
+        && request.resource.data.paidAt == resource.data.paidAt
+        && request.resource.data.providerTransactionId == resource.data.providerTransactionId
+        && request.resource.data.paymentStatus == resource.data.paymentStatus
+        && request.resource.data.paymentMethod == resource.data.paymentMethod
+        && request.resource.data.updatedAt is int
+        && request.resource.data.cancelledAt is int
+        && request.resource.data.status == 'cancelled'
+        && resource.data.status == 'upcoming';
+    }
+
     match /users/{userId} {
       allow read, create, update: if isOwner(userId);
       allow delete: if false;
+
+      match /notifications/{notificationId} {
+        allow read, create, update, delete: if isOwner(userId);
+      }
 
       match /bookings/{bookingId} {
         allow read: if isOwner(userId);
@@ -68,9 +102,15 @@ service cloud.firestore {
         // Spark-compatible dummy fallback: allow only strict unpaid ->
         // payment_processing -> paid transitions.
         allow update: if canMovePaymentToProcessing(userId)
-          || canMovePaymentToPaid(userId);
+          || canMovePaymentToPaid(userId)
+          || canCancelBooking(userId);
         allow delete: if false;
       }
+    }
+
+    match /public_notifications/{notificationId} {
+      allow read: if true;
+      allow write: if false;
     }
   }
 }

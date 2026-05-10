@@ -437,6 +437,21 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
                   userId: user.uid,
                   flight: widget.flight,
                 );
+
+                if (!context.mounted) {
+                  return;
+                }
+
+                final BookingState updatedState = ref.read(
+                  bookingControllerProvider,
+                );
+                if (updatedState.createdBooking != null) {
+                  showAppFeedback(
+                    context,
+                    'AirSky: Booking created. Check Notifications for booking updates.',
+                    type: AppFeedbackType.success,
+                  );
+                }
               }
             },
           ),
