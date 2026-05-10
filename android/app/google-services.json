@@ -12,7 +12,20 @@
           "package_name": "com.example.air_sky"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "968530155421-m2unj310q92omqi2srbeiar12u2cnt00.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.air_sky",
+            "certificate_hash": "09538b47f55c46aef18fb1706dec085f8b9df418"
+          }
+        },
+        {
+          "client_id": "968530155421-rgnlkt7j4himc4eng6vh3delnkrpk50t.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCjTPnulDyiVnvzepO0F_yUfbZ_0Uqi0qs"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "968530155421-rgnlkt7j4himc4eng6vh3delnkrpk50t.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
