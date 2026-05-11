@@ -1,6 +1,18 @@
 import 'package:air_sky/features/booking/models/passenger.dart';
 import 'package:air_sky/features/flights/models/flight.dart';
 
+/// Represents a confirmed booking with all booking and payment details.
+///
+/// Lifecycle:
+/// 1. Created with status='upcoming' and paymentStatus='unpaid'
+/// 2. User initiates payment → paymentStatus='payment_processing'
+/// 3. After dummy payment delay → paymentStatus='paid', paidAt set
+/// 4. On departure date → status changes to 'completed' or 'cancelled'
+///
+/// Firestore path: users/{userId}/bookings/{bookingId}
+///
+/// Note: Uses dummy local payment model with Firestore rule validation.
+/// Secure server-side payment gateway integration is future work.
 class Booking {
   Booking({
     required this.bookingId,

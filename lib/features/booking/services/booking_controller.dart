@@ -5,6 +5,16 @@ import 'package:air_sky/features/booking/models/booking.dart';
 import 'package:air_sky/features/booking/models/passenger.dart';
 import 'package:air_sky/features/flights/models/flight.dart';
 
+/// State object for the multi-step booking flow.
+///
+/// Tracks:
+/// - currentStep: Booking wizard step (0=passenger form, 1=seat selection, 2=review, etc.)
+/// - passengers: List of passenger details being entered
+/// - selectedSeats: Seat selections per passenger
+/// - isSubmitting: Whether booking submission is in progress
+/// - bookingId: ID after successful booking submission
+/// - createdBooking: Full booking object from server
+/// - errorMessage: User-facing error message if any step fails
 class BookingState {
   const BookingState({
     required this.currentStep,
@@ -58,11 +68,20 @@ class BookingState {
   }
 }
 
+/// State controller for the multi-step booking workflow.
+/// 
+/// Manages:
+/// - Passenger data collection and validation
+/// - Seat selection and mapping to passengers
+/// - Booking submission to Firestore
+/// - Error handling and user feedback
 class BookingController extends StateNotifier<BookingState> {
   BookingController(this._repository) : super(BookingState.initial());
 
   final BookingRepository _repository;
 
+  /// Converts raw error object to user-friendly message.
+  /// Filters out technical stack traces and Firebase internals.
   String _toUserErrorMessage(Object error, {required String fallbackMessage}) {
     final String raw = error.toString().trim();
     const String exceptionPrefix = 'Exception: ';
@@ -75,6 +94,7 @@ class BookingController extends StateNotifier<BookingState> {
     }
 
     final String normalized = message.toLowerCase();
+    // Filter out technical noise
     if (normalized.contains('stack trace') ||
         normalized.contains('firebase') ||
         normalized.contains('flutterfire') ||
@@ -87,10 +107,13 @@ class BookingController extends StateNotifier<BookingState> {
     return message;
   }
 
+  /// Sets the list of passengers for the booking.
   void setPassengers(List<Passenger> values) {
     state = state.copyWith(passengers: List<Passenger>.from(values));
   }
 
+  /// Selects a seat for a specific passenger in the booking.
+  /// Updates selectedSeats list at the passenger index.
   void selectSeatForPassenger({
     required int passengerIndex,
     required int totalPassengers,

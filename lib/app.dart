@@ -8,13 +8,26 @@ import 'package:air_sky/config/app_providers.dart';
 import 'package:air_sky/config/app_router.dart';
 import 'package:air_sky/config/app_theme.dart';
 
+/// Root widget for the AirSky application.
+///
+/// Sets up:
+/// - ScreenUtil for responsive design (base design: 390x844)
+/// - Material Design theme (light and dark modes)
+/// - GoRouter for navigation with auth guards
+/// - Theme mode and currency preference watchers
+/// - Status bar styling that adapts to theme
 class AirSkyApp extends ConsumerWidget {
   const AirSkyApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Watch currency preference for dynamic formatting
     ref.watch(currencyControllerProvider);
+    
+    // Get router instance with redirect logic
     final router = ref.watch(goRouterProvider);
+    
+    // Watch theme mode changes
     final themeMode = ref.watch(themeModeControllerProvider);
 
     return ScreenUtilInit(
@@ -29,6 +42,7 @@ class AirSkyApp extends ConsumerWidget {
           darkTheme: AppTheme.darkTheme(),
           themeMode: themeMode,
           builder: (BuildContext context, Widget? routedChild) {
+            // Ensure status bar icon colors match active theme
             final bool isDark = Theme.of(context).brightness == Brightness.dark;
             final SystemUiOverlayStyle overlayStyle = isDark
                 ? SystemUiOverlayStyle.light.copyWith(

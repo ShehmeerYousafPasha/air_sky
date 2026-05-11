@@ -1,14 +1,43 @@
 rules_version = '2';
+
+/**
+ * Firestore security rules for AirSky application.
+ * 
+ * KEY PRINCIPLES:
+ * 1. Authentication Required: Only signed-in users can read/write their own data
+ * 2. Ownership Enforcement: Users can only access their own bookings and profile
+ * 3. Payment Validation: State transitions are strictly validated to prevent tampering
+ * 4. Immutable Flight Data: Flight, passenger, seat, and amount fields cannot be changed
+ * 
+ * BOOKING LIFECYCLE:
+ * - Initial Creation: Client creates with paymentStatus='unpaid'
+ * - Payment Processing: Client transitions to paymentStatus='payment_processing' 
+ *   (validated to only change specific fields)
+ * - Payment Complete: Client transitions to paymentStatus='paid'
+ *   (requires valid transaction ID and processing state proof)
+ * - Cancellation: Users can cancel anytime (marks status='cancelled')
+ * 
+ * TODO for Production:
+ * - Integrate with real payment gateway (Stripe, Razorpay, etc.)
+ * - Move payment verification to secure Cloud Functions
+ * - Implement rate limiting to prevent abuse
+ * - Add audit logging for all state transitions
+ */
+
 service cloud.firestore {
   match /databases/{database}/documents {
+    /// Checks if user is authenticated
     function isSignedIn() {
       return request.auth != null;
     }
 
+    /// Checks if request user owns the resource
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    /// Validates transition from 'unpaid' to 'payment_processing' state.
+    /// Ensures immutability of booking details and transaction ID format.
     function canMovePaymentToProcessing(userId) {
       return isOwner(userId)
         && resource.data.userId == userId

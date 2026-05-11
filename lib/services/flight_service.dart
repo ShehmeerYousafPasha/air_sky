@@ -3,9 +3,23 @@ import 'dart:math';
 import 'package:air_sky/features/flights/models/flight.dart';
 import 'package:air_sky/features/flights/models/flight_search_query.dart';
 
+/// Mock flight generation service for prototyping and testing.
+///
+/// This service generates deterministic, realistic flight data for development.
+/// In production, this would be replaced with actual Schiphol API or other
+/// live flight search service integration.
+///
+/// Key design decisions:
+/// - Uses seeded [Random] based on search parameters for consistent results
+/// - Generates 18 flights per search to simulate real-world variety
+/// - Includes realistic stops, layovers, pricing, and flight times
+/// - Prices vary based on distance, cabin class, and days until travel
+///
+/// TODO: Replace with live Schiphol API integration for production
 class FlightService {
   const FlightService();
 
+  /// Supported airlines for mock generation
   static const List<String> _airlines = <String>[
     'Emirates',
     'Qatar Airways',
@@ -14,6 +28,7 @@ class FlightService {
     'PIA',
   ];
 
+  /// Major airport codes used in mock route generation
   static const List<String> _airports = <String>[
     'ISB',
     'DXB',
@@ -24,6 +39,8 @@ class FlightService {
     'KHI',
   ];
 
+  /// Approximate distances between major routes (in kilometers)
+  /// Used for realistic flight duration and pricing calculations
   static const Map<String, double> _routeDistanceKm = <String, double>{
     'ISB-DXB': 1920,
     'ISB-SIN': 4780,
@@ -48,6 +65,23 @@ class FlightService {
     'DOH-KHI': 1560,
   };
 
+  /// Generates mock flights for a given search query.
+  ///
+  /// Returns a list of 18 deterministic flights that match the search criteria.
+  /// Results are seeded based on the search parameters to ensure consistent
+  /// results across app restarts for the same query.
+  ///
+  /// Flight generation includes:
+  /// - Random airline selection from supported carriers
+  /// - Stop variation (0-2 stops with realistic frequencies)
+  /// - Realistic flight times based on route distance
+  /// - Dynamic pricing based on distance, dates, and demand
+  /// - Layover information for connecting flights
+  ///
+  /// Parameters:
+  ///   - query: Search criteria (route, date, passengers, cabin class)
+  ///
+  /// Returns: List of 18 [Flight] objects
   List<Flight> generateFlights(FlightSearchQuery query) {
     final int seed = Object.hash(
       query.fromAirport,

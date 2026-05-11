@@ -6,9 +6,21 @@ import 'package:air_sky/utils/price_formatter.dart';
 import 'package:air_sky/features/flights/models/flight.dart';
 import 'package:air_sky/features/flights/models/flight_search_query.dart';
 
+/// Service for managing local persistent data using Hive.
+///
+/// Manages three Hive boxes:
+/// - settingsBox: User preferences (theme, currency, onboarding status)
+/// - recentSearchesBox: Previously searched routes/parameters
+/// - lastResultsBox: Cached flight results for offline access
+///
+/// Used in main.dart to initialize boxes before app runs.
 class LocalStorageService {
   const LocalStorageService();
 
+  /// Initializes all Hive boxes needed for the app.
+  ///
+  /// Called once during app bootstrap (in main.dart).
+  /// Opens three boxes for settings, recent searches, and cached results.
   static Future<void> initialize() async {
     await Hive.openBox<dynamic>(HiveConstants.settingsBox);
     await Hive.openBox<dynamic>(HiveConstants.recentSearchesBox);

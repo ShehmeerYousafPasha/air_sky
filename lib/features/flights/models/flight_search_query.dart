@@ -1,3 +1,19 @@
+/// Represents a flight search request.
+///
+/// Used to:
+/// - Capture user input from search form
+/// - Query flight service for matching flights
+/// - Cache recent searches to Hive
+/// - Seed deterministic flight generation
+///
+/// Search parameters:
+/// - fromAirport: Departure airport (IATA code, e.g., 'ISB')
+/// - toAirport: Arrival airport (IATA code, e.g., 'DXB')
+/// - date: Departure date
+/// - passengers: Number of travelers (1-9)
+/// - cabinClass: Booking class (Economy, Business, etc.)
+///
+/// Immutable and serializable to/from maps for Hive storage.
 class FlightSearchQuery {
   const FlightSearchQuery({
     required this.fromAirport,
@@ -13,8 +29,10 @@ class FlightSearchQuery {
   final int passengers;
   final String cabinClass;
 
+  /// Convenience getter for route identifier (e.g., 'ISB-DXB')
   String get routeKey => '$fromAirport-$toAirport';
 
+  /// Converts to Firestore/Hive-compatible map
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'fromAirport': fromAirport,
@@ -25,6 +43,7 @@ class FlightSearchQuery {
     };
   }
 
+  /// Reconstructs from stored map (handles missing fields with defaults)
   factory FlightSearchQuery.fromMap(Map<dynamic, dynamic> map) {
     return FlightSearchQuery(
       fromAirport: map['fromAirport'] as String? ?? '',

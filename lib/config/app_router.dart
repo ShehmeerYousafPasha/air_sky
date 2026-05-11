@@ -20,28 +20,37 @@ import 'package:air_sky/features/onboarding/screens/onboarding_screen.dart';
 import 'package:air_sky/features/profile/screens/profile_screen.dart';
 import 'package:air_sky/features/splash/screens/splash_screen.dart';
 
+/// Change notifier for router refresh triggers.
+/// Listens to auth state, onboarding completion, and guest mode changes.
 class _RouterRefreshNotifier extends ChangeNotifier {
   void refresh() {
     notifyListeners();
   }
 }
 
+/// Provider for router refresh notifier.
+/// Triggers route re-evaluation when auth or user preference state changes.
 final Provider<_RouterRefreshNotifier> _routerRefreshNotifierProvider =
     Provider<_RouterRefreshNotifier>((Ref ref) {
       final _RouterRefreshNotifier notifier = _RouterRefreshNotifier();
 
+  // Refresh router when auth state changes (login/logout/email verification)
       ref.listen<AsyncValue<User?>>(authStateChangesProvider, (
         AsyncValue<User?>? previous,
         AsyncValue<User?> next,
       ) {
         notifier.refresh();
       });
+      
+      // Refresh router when onboarding is completed
       ref.listen<bool>(onboardingCompletedProvider, (
         bool? previous,
         bool next,
       ) {
         notifier.refresh();
       });
+      
+  // Refresh router when guest mode is toggled
       ref.listen<bool>(guestModeProvider, (bool? previous, bool next) {
         notifier.refresh();
       });
@@ -50,6 +59,20 @@ final Provider<_RouterRefreshNotifier> _routerRefreshNotifierProvider =
       return notifier;
     });
 
+/// Main GoRouter provider with redirect logic for auth guards and guest restrictions.
+///
+/// ROUTING PRIORITY (in order of evaluation):
+/// 1. Splash screen (always allowed while loading)
+/// 2. Onboarding (required if not completed)
+/// 3. Auth screens (login/signup - skip if authenticated or guest)
+/// 4. Guest restrictions (guests cannot access booking/trip screens)
+/// 5. Auth requirement (non-guests must have verified email)
+///
+/// STATES:
+/// - Verified User: Full app access
+/// - Email Unverified: Blocked until email verification
+/// - Guest User: Can search flights but not book
+/// - First Launch: Must complete onboarding first
 final Provider<GoRouter> goRouterProvider = Provider<GoRouter>((Ref ref) {
   final _RouterRefreshNotifier refreshNotifier = ref.read(
     _routerRefreshNotifierProvider,
@@ -65,6 +88,7 @@ final Provider<GoRouter> goRouterProvider = Provider<GoRouter>((Ref ref) {
 
       final String location = state.matchedLocation;
 
+      // Helper flags to identify route types
       final bool isSplashRoute = location == RoutePaths.splash;
       final bool isOnboardingRoute = location == RoutePaths.onboarding;
       final bool isAuthRoute =
@@ -73,30 +97,37 @@ final Provider<GoRouter> goRouterProvider = Provider<GoRouter>((Ref ref) {
           location == RoutePaths.flightDetails ||
           location == RoutePaths.booking;
 
+      // Allow splash screen to display while loading auth state
       if (isSplashRoute) {
         return null;
       }
 
+      // Require onboarding completion before accessing any other route
       if (!onboardingCompleted && !isOnboardingRoute && !isAuthRoute) {
         return RoutePaths.onboarding;
       }
 
+      // Wait for auth state to load before making routing decisions
       if (authState.isLoading) {
         return null;
       }
 
+      // Determine user's access level
       final User? user = authState.valueOrNull;
       final bool isVerifiedUser = user != null && user.emailVerified;
       final bool hasAccess = isVerifiedUser || isGuest;
 
+      // Prevent guests from accessing booking-only routes
       if (isGuest && isGuestRestrictedRoute) {
         return RoutePaths.search;
       }
 
+      // Skip onboarding if already completed
       if (onboardingCompleted && isOnboardingRoute) {
         return hasAccess ? RoutePaths.home : RoutePaths.login;
       }
 
+      // Require authentication for protected routes
       if (!hasAccess && onboardingCompleted && !isAuthRoute) {
         return RoutePaths.login;
       }

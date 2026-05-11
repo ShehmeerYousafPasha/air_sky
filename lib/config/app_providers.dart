@@ -29,28 +29,48 @@ import 'package:air_sky/services/firebase_bootstrap.dart';
 import 'package:air_sky/services/flight_service.dart';
 import 'package:air_sky/services/local_storage_service.dart';
 
+// ============================================================================
+// BOOTSTRAP & CORE SERVICES
+// ============================================================================
+
+/// Firebase initialization result provider.
+/// Overridden in main.dart after async bootstrap completes.
 final Provider<FirebaseBootstrapResult> firebaseBootstrapProvider =
     Provider<FirebaseBootstrapResult>(
       (Ref ref) => const FirebaseBootstrapResult(isReady: false),
     );
 
+/// Local storage service provider for Hive box access.
 final Provider<LocalStorageService> localStorageServiceProvider =
     Provider<LocalStorageService>((Ref ref) => const LocalStorageService());
 
+/// Flight data generation service provider (mock flight generator).
 final Provider<FlightService> flightServiceProvider = Provider<FlightService>(
   (Ref ref) => const FlightService(),
 );
 
+// ============================================================================
+// AUTHENTICATION & USER STATE
+// ============================================================================
+
+/// Onboarding completion state controller.
+/// Persisted to Hive and restored on app startup.
 final StateNotifierProvider<OnboardingController, bool>
 onboardingCompletedProvider = StateNotifierProvider<OnboardingController, bool>(
   (Ref ref) => OnboardingController(ref.watch(localStorageServiceProvider)),
 );
 
+/// Guest mode state controller.
+/// Allows browsing without Firebase authentication.
+/// Restricted from booking and trip management screens.
 final StateNotifierProvider<GuestModeController, bool> guestModeProvider =
     StateNotifierProvider<GuestModeController, bool>(
       (Ref ref) => GuestModeController(ref.watch(localStorageServiceProvider)),
     );
 
+/// Authentication repository provider.
+/// Returns either [AuthRepositoryImpl] (Firebase-backed) or
+/// [UnavailableAuthRepository] if Firebase failed to initialize.
 final Provider<AuthRepository> authRepositoryProvider =
     Provider<AuthRepository>((Ref ref) {
       final FirebaseBootstrapResult bootstrap = ref.watch(
@@ -65,10 +85,14 @@ final Provider<AuthRepository> authRepositoryProvider =
       );
     });
 
+/// Stream of authentication state changes.
+/// Listens to Firebase Auth and updates routing logic.
 final StreamProvider<User?> authStateChangesProvider = StreamProvider<User?>(
   (Ref ref) => ref.watch(authRepositoryProvider).authStateChanges(),
 );
 
+/// Stream of current user profile data from Firestore.
+/// Only available for authenticated (non-guest) users.
 final StreamProvider<Map<String, dynamic>?> userProfileDataProvider =
     StreamProvider<Map<String, dynamic>?>((Ref ref) {
       final FirebaseBootstrapResult bootstrap = ref.watch(

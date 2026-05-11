@@ -1,10 +1,21 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+/// Singleton service for managing local push notifications.
+///
+/// Handles platform-specific notification setup and display for:
+/// - Booking confirmations
+/// - Payment status changes
+/// - Booking cancellations
+/// - Travel reminders
+///
+/// Supports Android, iOS, and macOS with proper channel/permission handling.
 class LocalNotificationService {
   LocalNotificationService._();
 
+  /// Singleton instance for app-wide access
   static final LocalNotificationService instance = LocalNotificationService._();
 
+  /// Android notification channel for booking-related notifications
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
     'airsky_booking_updates',
     'Booking updates',
@@ -16,11 +27,18 @@ class LocalNotificationService {
       FlutterLocalNotificationsPlugin();
   bool _initialized = false;
 
+  /// Initializes local notification system for all supported platforms.
+  ///
+  /// - Sets up Android notification channel for booking alerts
+  /// - Requests iOS permissions (alert, badge, sound)
+  /// - Requests macOS permissions (alert, badge, sound)
+  /// - Safe to call multiple times (guards against duplicate initialization)
   Future<void> initialize() async {
     if (_initialized) {
       return;
     }
 
+    // Configure platform-specific initialization settings
     const AndroidInitializationSettings androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const DarwinInitializationSettings iosSettings = DarwinInitializationSettings(
@@ -34,8 +52,10 @@ class LocalNotificationService {
       iOS: iosSettings,
     );
 
+    // Initialize plugin
     await _plugin.initialize(settings);
 
+    // Android: Create notification channel
     final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
         _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -45,6 +65,7 @@ class LocalNotificationService {
       await androidImplementation.requestNotificationsPermission();
     }
 
+    // iOS: Request permissions
     final IOSFlutterLocalNotificationsPlugin? iosImplementation =
         _plugin.resolvePlatformSpecificImplementation<
           IOSFlutterLocalNotificationsPlugin
